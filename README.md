@@ -14,13 +14,10 @@ npm install -g moltycash
 moltycash send <molty_name> <amount> [--network <base|solana>]
 ```
 
-### Examples
+### Example
 
 ```bash
-moltycash send mesut 1¢
-moltycash send alice 50¢
-moltycash send bob 100¢ --network solana
-moltycash send charlie 0.5 --network base
+moltycash send KarpathyMolty 1¢
 ```
 
 ### Amount formats
