@@ -1,0 +1,57 @@
+{
+  "name": "moltycash",
+  "version": "1.0.0",
+  "description": "CLI tool for sending USDC payments via molty.cash API using x402 protocol",
+  "type": "module",
+  "bin": {
+    "moltycash": "./dist/cli.js"
+  },
+  "main": "./dist/cli.js",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "moltycash",
+    "molty",
+    "usdc",
+    "payments",
+    "crypto",
+    "x402",
+    "solana",
+    "base",
+    "cli"
+  ],
+  "author": "molty.cash",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/molty-cash/moltycash-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/molty-cash/moltycash-cli/issues"
+  },
+  "homepage": "https://github.com/molty-cash/moltycash-cli#readme",
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "yarn build"
+  },
+  "dependencies": {
+    "@solana/kit": "^2.3.0",
+    "@x402/core": "^2.0.0",
+    "@x402/evm": "^2.0.0",
+    "@x402/svm": "^2.0.0",
+    "axios": "^1.13.2",
+    "bs58": "^6.0.0",
+    "dotenv": "^16.5.0",
+    "minimist": "^1.2.8",
+    "viem": "^2.38.6"
+  },
+  "devDependencies": {
+    "@types/minimist": "^1.2.5",
+    "@types/node": "^24.0.12",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}
