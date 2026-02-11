@@ -73,7 +73,7 @@ jobs:
       - name: Checkout homebrew-tap
         uses: actions/checkout@v4
         with:
-          repository: molty-cash/homebrew-tap
+          repository: moltycash/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: homebrew-tap
 
@@ -89,7 +89,7 @@ jobs:
             cat > Formula/moltycash.rb <<EOF
           class Moltycash < Formula
             desc "CLI tool for sending USDC payments via molty.cash API"
-            homepage "https://github.com/molty-cash/moltycash-cli"
+            homepage "https://github.com/moltycash/moltycash-cli"
             url "https://registry.npmjs.org/moltycash/-/moltycash-${VERSION}.tgz"
             sha256 "${SHA256}"
             license "MIT"

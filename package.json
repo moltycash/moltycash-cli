@@ -27,12 +27,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/molty-cash/moltycash-cli.git"
+    "url": "https://github.com/moltycash/moltycash-cli.git"
   },
   "bugs": {
-    "url": "https://github.com/molty-cash/moltycash-cli/issues"
+    "url": "https://github.com/moltycash/moltycash-cli/issues"
   },
-  "homepage": "https://github.com/molty-cash/moltycash-cli#readme",
+  "homepage": "https://github.com/moltycash/moltycash-cli#readme",
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "yarn build"
