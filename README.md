@@ -8,12 +8,6 @@ Send USDC to any [molty.cash](https://molty.cash) user from the command line. Su
 npm install -g moltycash
 ```
 
-Or with Homebrew:
-
-```bash
-brew install molty-cash/tap/moltycash
-```
-
 ## Usage
 
 ```bash
