@@ -3,7 +3,7 @@ import minimist from "minimist";
 import axios from "axios";
 import { Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { x402Client } from "@x402/core/client";
+import { x402Client, x402HTTPClient } from "@x402/core/client";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { registerExactSvmScheme } from "@x402/svm/exact/client";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
@@ -13,8 +13,6 @@ const privateKey = process.env.EVM_PRIVATE_KEY as Hex;
 const svmPrivateKey = process.env.SVM_PRIVATE_KEY as string;
 const baseURL = process.env.RESOURCE_SERVER_URL || "https://api.molty.cash";
 const identityToken = process.env.MOLTY_IDENTITY_TOKEN as string | undefined;
-
-const X402_EXTENSION_URI = "https://github.com/google-a2a/a2a-x402/v0.1";
 
 /**
  * Parse amount from various formats:
@@ -145,8 +143,9 @@ if (args.network) {
 }
 
 async function main(): Promise<void> {
-  // Create x402 client
-  const client = new x402Client();
+  // Create x402 HTTP client
+  const baseClient = new x402Client();
+  const client = new x402HTTPClient(baseClient);
 
   if (useSolana) {
     console.log("\n🔧 Creating Solana signer...");
@@ -155,7 +154,7 @@ async function main(): Promise<void> {
     const solanaSigner = await createKeyPairSignerFromBytes(privateKeyBytes);
     console.log(`✅ Solana signer created: ${solanaSigner.address}`);
 
-    registerExactSvmScheme(client, { signer: solanaSigner });
+    registerExactSvmScheme(baseClient, { signer: solanaSigner });
   } else {
     console.log("\n🔧 Creating Base signer...");
 
@@ -167,7 +166,7 @@ async function main(): Promise<void> {
     const account = privateKeyToAccount(privateKey);
     console.log(`✅ Base signer created: ${account.address}`);
 
-    registerExactEvmScheme(client, { signer: account });
+    registerExactEvmScheme(baseClient, { signer: account });
   }
 
   console.log(`\n💸 Sending ${amount} USDC to @${moltyUsername}...`);
@@ -180,72 +179,70 @@ async function main(): Promise<void> {
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "X-A2A-Extensions": X402_EXTENSION_URI,
     ...(identityToken && { "X-Molty-Identity-Token": identityToken }),
   };
 
-  const payParams = {
-    molty: moltyUsername,
-    amount,
-    description: `Payment via moltycash-cli (${useSolana ? "Solana" : "Base"})`,
-    meta: { agent_name: "moltycash-cli" },
+  const jsonRpcBody = {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "molty.send",
+    params: {
+      molty: moltyUsername,
+      amount,
+      description: `Payment via moltycash-cli (${useSolana ? "Solana" : "Base"})`,
+      meta: { agent_name: "moltycash-cli" },
+    },
   };
 
   try {
-    // Phase 1: Get payment requirements
-    console.log("💳 Phase 1: Requesting payment requirements...");
+    // Step 1: Send request, expect 402 with payment requirements
+    console.log("💳 Requesting payment requirements...");
 
-    const phase1Response = await axios.post(
-      `${baseURL}/a2a`,
-      {
-        jsonrpc: "2.0",
-        id: 1,
-        method: "molty.send",
-        params: payParams,
-      },
-      { headers },
-    );
+    let paymentRequired;
+    try {
+      const response = await axios.post(`${baseURL}/a2a`, jsonRpcBody, {
+        headers,
+        validateStatus: (status) => status === 402 || status === 200,
+      });
 
-    if (phase1Response.data.error) {
-      throw new Error(phase1Response.data.error.message || "A2A request failed");
+      if (response.status === 200) {
+        // Already paid or no payment needed
+        console.log(`✅ ${response.data?.result?.status?.message?.parts?.[0]?.text || "Request completed"}`);
+        return;
+      }
+
+      // Extract payment requirements from 402 response
+      paymentRequired = client.getPaymentRequiredResponse(
+        (name: string) => response.headers[name.toLowerCase()] as string | undefined,
+        response.data,
+      );
+    } catch (error: any) {
+      if (error.response?.status === 402) {
+        paymentRequired = client.getPaymentRequiredResponse(
+          (name: string) => error.response.headers[name.toLowerCase()] as string | undefined,
+          error.response.data,
+        );
+      } else {
+        throw error;
+      }
     }
 
-    const phase1Result = phase1Response.data.result;
-    if (!phase1Result.id) {
-      throw new Error("Missing task ID in response");
-    }
-
-    const paymentRequired = phase1Result.status?.message?.metadata?.["x402.payment.required"];
-    if (!paymentRequired) {
-      throw new Error("No payment requirements found in response");
-    }
-
-    // Phase 2: Sign and submit payment
-    console.log("🔐 Phase 2: Signing payment...");
+    // Step 2: Sign payment
+    console.log("🔐 Signing payment...");
     const signedPayment = await client.createPaymentPayload(paymentRequired);
+    const paymentHeaders = client.encodePaymentSignatureHeader(signedPayment);
 
-    console.log("📤 Submitting signed payment...\n");
+    // Step 3: Retry with payment header
+    console.log("📤 Submitting payment...\n");
+    const paidResponse = await axios.post(`${baseURL}/a2a`, jsonRpcBody, {
+      headers: { ...headers, ...paymentHeaders },
+    });
 
-    const phase2Response = await axios.post(
-      `${baseURL}/a2a`,
-      {
-        jsonrpc: "2.0",
-        id: 2,
-        method: "molty.send",
-        params: {
-          ...payParams,
-          taskId: phase1Result.id,
-          payment: signedPayment,
-        },
-      },
-      { headers },
-    );
-
-    if (phase2Response.data.error) {
-      throw new Error(phase2Response.data.error.message || "Payment failed");
+    if (paidResponse.data.error) {
+      throw new Error(paidResponse.data.error.message || "Payment failed");
     }
 
-    const result = phase2Response.data.result;
+    const result = paidResponse.data.result;
 
     // Extract details from task artifacts
     const artifacts = result.artifacts || [];
@@ -254,17 +251,14 @@ async function main(): Promise<void> {
         try {
           const data = JSON.parse(Buffer.from(artifact.data, "base64").toString());
           console.log(`✅ ${data.amount} USDC sent to @${data.molty || moltyUsername}`);
-          if (data.txn_id) {
-            console.log(`🔗 TXN: ${data.txn_id}`);
+          if (data.transaction_hash) {
+            console.log(`🔗 TXN: ${data.transaction_hash}`);
           }
           if (data.network) {
             console.log(`💳 Network: ${data.network}`);
           }
           if (data.receipt) {
             console.log(`📄 Receipt: ${data.receipt}`);
-          }
-          if (data.x_handle) {
-            console.log(`🐦 X: @${data.x_handle}`);
           }
           return;
         } catch {
