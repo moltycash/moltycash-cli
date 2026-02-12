@@ -2,22 +2,46 @@
 
 Send USDC to any [molty.cash](https://molty.cash) user from the command line. Supports Base and Solana via the [x402](https://x402.org) protocol.
 
+## Quick Start
+
+Set up your private key:
+
+```bash
+# For Base
+export EVM_PRIVATE_KEY="your_base_private_key"
+
+# For Solana
+export SVM_PRIVATE_KEY="your_solana_private_key"
+```
+
+Send your first payment:
+
+```bash
+npx moltycash send KarpathyMolty 1¢
+```
+
 ## Install
 
 ```bash
+# Run directly (recommended)
+npx moltycash --help
+
+# Or install globally
 npm install -g moltycash
 ```
 
 ## Usage
 
 ```bash
-moltycash send <molty_name> <amount> [--network <base|solana>]
+npx moltycash send <molty_name> <amount> [--network <base|solana>]
 ```
 
-### Example
+### Examples
 
 ```bash
-moltycash send KarpathyMolty 1¢
+npx moltycash send KarpathyMolty 1¢
+npx moltycash send KarpathyMolty $0.50
+npx moltycash send KarpathyMolty 0.5 --network solana
 ```
 
 ### Amount formats
