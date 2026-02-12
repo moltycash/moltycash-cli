@@ -1,10 +1,10 @@
 {
   "name": "moltycash",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "CLI tool for sending USDC payments via molty.cash API using x402 protocol",
   "type": "module",
   "bin": {
-    "moltycash": "./dist/cli.js"
+    "moltycash": "dist/cli.js"
   },
   "main": "./dist/cli.js",
   "files": [
@@ -27,7 +27,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/moltycash/moltycash-cli.git"
+    "url": "git+https://github.com/moltycash/moltycash-cli.git"
   },
   "bugs": {
     "url": "https://github.com/moltycash/moltycash-cli/issues"
