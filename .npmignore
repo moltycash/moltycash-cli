@@ -1,0 +1,34 @@
+# Source files (we only publish compiled dist/)
+*.ts
+!*.d.ts
+tsconfig.json
+
+# Development files
+.env
+.env-local
+.env.example
+node_modules/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+.code/
+*.swp
+*.swo
+
+# Claude
+.claude/
+
+# Build artifacts
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
