@@ -154,10 +154,10 @@ async function earnerCall(method: string, params: Record<string, unknown>): Prom
 async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   const perGigUsdAmount = args.price;
   const quantity = args.quantity || 1;
-  const condition = args._.slice(1).join(" ").trim();
+  const task = args._.slice(1).join(" ").trim();
 
-  if (!perGigUsdAmount || !condition) {
-    console.error('Usage: moltycash gig create "<condition>" --price <value> [--quantity <n>] [--network <base|solana>]');
+  if (!perGigUsdAmount || !task) {
+    console.error('Usage: moltycash gig create "<task>" --price <value> [--quantity <n>] [--network <base|solana>]');
     console.error('\nExample: moltycash gig create "Take a photo of your local coffee shop" --price 0.1 --quantity 10 --network base');
     process.exit(1);
   }
@@ -175,8 +175,8 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
     process.exit(1);
   }
 
-  if (condition.length > 500) {
-    console.error(`\u274c Condition too long (${condition.length} chars). Max 500 characters.`);
+  if (task.length > 500) {
+    console.error(`\u274c Task description too long (${task.length} chars). Max 500 characters.`);
     process.exit(1);
   }
 
@@ -239,14 +239,14 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   const totalSlots = Math.floor(amount / perPostPrice);
   console.log(`\n\ud83c\udfaf Creating gig: ${totalSlots} slot(s) at ${perPostPrice} USDC each (total: ${amount} USDC)`);
   console.log(`   Network: ${useSolana! ? "Solana" : "Base"}`);
-  console.log(`   Condition: ${condition}`);
+  console.log(`   Task: ${task}`);
   console.log();
 
   // Phase 1: Get payment requirements
   console.log("\ud83d\udcb3 Phase 1: Requesting payment requirements...");
   const phase1Result = await a2aCall(
     "gig.create",
-    { amount, per_post_price: perPostPrice, condition },
+    { amount, per_post_price: perPostPrice, task },
     { "X-A2A-Extensions": X402_EXTENSION_URI },
   );
 
@@ -269,7 +269,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
     {
       amount,
       per_post_price: perPostPrice,
-      condition,
+      task,
       taskId: phase1Result.id,
       payment: signedPayment,
     },
@@ -286,7 +286,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
         console.log(`   ID: ${data.gig_id}`);
         console.log(`   Slots: ${data.total_slots}`);
         console.log(`   Per post: ${data.per_post_price} USDC`);
-        console.log(`   Condition: ${data.condition}`);
+        console.log(`   Task: ${data.task}`);
         console.log(`   Deadline: ${data.deadline}`);
         if (data.transaction_hash) {
           console.log(`   TXN: ${data.transaction_hash}`);
@@ -321,7 +321,7 @@ async function handleMyGigs(): Promise<void> {
   for (const b of gigs) {
     const statusIcon = b.status === "open" ? "\ud83d\udfe2" : b.status === "completed" ? "\u2705" : "\u23f0";
     console.log(`  ${statusIcon} ${b.id} [${b.status}]`);
-    console.log(`     ${b.condition}`);
+    console.log(`     ${b.task}`);
     console.log(`     ${b.amount} USDC (${b.per_post_price}/post) \u2014 ${b.claimed_slots}/${b.total_slots} claimed`);
     console.log(`     Deadline: ${b.deadline}`);
     console.log();
@@ -342,7 +342,7 @@ async function handleGet(args: minimist.ParsedArgs): Promise<void> {
 
   const statusIcon = result.status === "open" ? "\ud83d\udfe2" : result.status === "completed" ? "\u2705" : "\u23f0";
   console.log(`${statusIcon} ${result.id} [${result.status}]`);
-  console.log(`   Condition: ${result.condition}`);
+  console.log(`   Task: ${result.task}`);
   console.log(`   Amount: ${result.amount} USDC (${result.per_post_price} per post)`);
   console.log(`   Slots: ${result.claimed_slots} claimed / ${result.assigned_slots} assigned / ${result.total_slots} total`);
   console.log(`   Remaining: ${result.remaining_slots}`);
@@ -440,7 +440,7 @@ async function handleList(): Promise<void> {
   console.log(`Found ${gigs.length} gig(s):\n`);
   for (const g of gigs) {
     console.log(`  \ud83d\udfe2 ${g.id}`);
-    console.log(`     ${g.condition}`);
+    console.log(`     ${g.task}`);
     console.log(`     ${g.per_post_price} USDC/post \u2014 ${g.remaining_slots} slot(s) left`);
     console.log(`     Deadline: ${g.deadline}`);
     console.log();
@@ -503,7 +503,7 @@ async function handleMyClaims(): Promise<void> {
       : a.status === "disputed" ? "\u26a0\ufe0f"
       : "\u2022";
     console.log(`  ${icon} ${a.claim_id} [${a.status}]`);
-    console.log(`     Gig: ${a.gig_id} \u2014 ${a.condition}`);
+    console.log(`     Gig: ${a.gig_id} \u2014 ${a.task}`);
     console.log(`     ${a.per_post_price} USDC`);
     if (a.message) console.log(`     ${a.message}`);
     console.log();

@@ -42,7 +42,7 @@ SEND EXAMPLES:
   moltycash send bob 100¢ --network solana
 
 GIG SUBCOMMANDS:
-  gig create "<condition>" --price <amount> [--quantity <n>] [--network <base|solana>]
+  gig create "<task>" --price <amount> [--quantity <n>] [--network <base|solana>]
   gig my-gigs                          List your created gigs
   gig get <gig_id>                     Get gig details
   gig dispute <gig_id> <claim_id> ["reason"]
