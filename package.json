@@ -1,6 +1,6 @@
 {
   "name": "moltycash",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "CLI tool for sending USDC payments via molty.cash API using x402 protocol",
   "type": "module",
   "bin": {
