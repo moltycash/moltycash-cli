@@ -90,7 +90,66 @@ async function a2aCall(
   return response.data.result;
 }
 
-// ───── Subcommands ─────
+// ───── x402 helpers ─────
+
+async function createSignedClient(): Promise<x402Client> {
+  const client = new x402Client();
+  const hasEvmKey = !!privateKey;
+  const hasSvmKey = !!svmPrivateKey;
+
+  if (!hasEvmKey && !hasSvmKey) {
+    console.error("\u274c No private keys found. Set EVM_PRIVATE_KEY or SVM_PRIVATE_KEY.");
+    process.exit(1);
+  }
+
+  if (hasEvmKey) {
+    if (!privateKey.startsWith("0x")) {
+      console.error("\u274c EVM_PRIVATE_KEY must start with '0x'");
+      process.exit(1);
+    }
+    const account = privateKeyToAccount(privateKey);
+    registerExactEvmScheme(client, { signer: account });
+  }
+
+  if (hasSvmKey) {
+    const privateKeyBytes = bs58.decode(svmPrivateKey);
+    const solanaSigner = await createKeyPairSignerFromBytes(privateKeyBytes);
+    registerExactSvmScheme(client, { signer: solanaSigner });
+  }
+
+  return client;
+}
+
+async function earnerCall(method: string, params: Record<string, unknown>): Promise<any> {
+  const client = await createSignedClient();
+
+  // Phase 1: Get payment requirements
+  const phase1 = await a2aCall(method, params, { "X-A2A-Extensions": X402_EXTENSION_URI });
+  const paymentRequired = phase1.status?.message?.metadata?.["x402.payment.required"];
+  if (!paymentRequired) throw new Error("No payment requirements in response");
+
+  // Phase 2: Sign and submit payment
+  const signedPayment = await client.createPaymentPayload(paymentRequired);
+  const phase2 = await a2aCall(
+    method,
+    { ...params, taskId: phase1.id, payment: signedPayment },
+    { "X-A2A-Extensions": X402_EXTENSION_URI },
+  );
+
+  // Extract result from artifact
+  const artifacts = phase2.artifacts || [];
+  for (const artifact of artifacts) {
+    if (artifact.data) {
+      try {
+        return JSON.parse(Buffer.from(artifact.data, "base64").toString());
+      } catch {}
+    }
+  }
+
+  return phase2;
+}
+
+// ───── Payer subcommands ─────
 
 async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   const perGigUsdAmount = args.price;
@@ -224,7 +283,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
       try {
         const data = JSON.parse(Buffer.from(artifact.data, "base64").toString());
         console.log(`\u2705 Gig created!`);
-        console.log(`   ID: ${data.gig_id || data.bounty_id}`);
+        console.log(`   ID: ${data.gig_id}`);
         console.log(`   Slots: ${data.total_slots}`);
         console.log(`   Per post: ${data.per_post_price} USDC`);
         console.log(`   Condition: ${data.condition}`);
@@ -252,7 +311,7 @@ async function handleMyGigs(): Promise<void> {
 
   const result = await a2aCall("gig.my_created", {});
 
-  const gigs = result.bounties || result.gigs || [];
+  const gigs = result.gigs || [];
   if (gigs.length === 0) {
     console.log("No gigs created yet.");
     return;
@@ -300,8 +359,10 @@ async function handleGet(args: minimist.ParsedArgs): Promise<void> {
     for (const c of claims) {
       const claimIcon = c.status === "completed" ? "\u2705"
         : c.status === "approved" ? "\u23f3"
+        : c.status === "pending_review" ? "\ud83d\udd0d"
         : c.status === "assigned" ? "\ud83d\udd12"
         : c.status === "rejected" ? "\u274c"
+        : c.status === "final_rejected" ? "\u26d4"
         : c.status === "disputed" ? "\u26a0\ufe0f"
         : "\u2022";
       console.log(`     ${claimIcon} @${c.claimer_molty} \u2014 ${c.status} \u2014 ${c.amount} USDC`);
@@ -321,60 +382,37 @@ async function handleGet(args: minimist.ParsedArgs): Promise<void> {
   console.log();
 }
 
-async function handleDispute(args: minimist.ParsedArgs): Promise<void> {
-  if (args._.length < 3) {
-    console.error('Usage: moltycash gig dispute <gig_id> <claim_id> ["reason"]');
-    console.error('\nExample: moltycash gig dispute ppp_123 claim_abc "Proof does not match the task"');
-    process.exit(1);
-  }
-
-  const gigId = args._[1];
-  const claimId = args._[2];
-  const reason = args._[3] || "Payer disputes this claim";
-
-  console.log(`\n\u26a0\ufe0f  Disputing claim ${claimId} on gig ${gigId}...`);
-  console.log(`   Reason: ${reason}\n`);
-
-  const result = await a2aCall("gig.dispute", {
-    gig_id: gigId,
-    claim_id: claimId,
-    reason,
-  });
-
-  console.log(`\u2705 Dispute submitted!`);
-  console.log(`   Claim: ${result.claim_id}`);
-  console.log(`   Status: ${result.status}`);
-  if (result.message) {
-    console.log(`   ${result.message}`);
-  }
-}
-
-async function handleResolve(args: minimist.ParsedArgs): Promise<void> {
+async function handleReview(args: minimist.ParsedArgs): Promise<void> {
   if (args._.length < 4) {
-    console.error("Usage: moltycash gig resolve <gig_id> <claim_id> <approve|reject>");
-    console.error('\nExample: moltycash gig resolve ppp_123 claim_abc approve');
+    console.error('Usage: moltycash gig review <gig_id> <claim_id> <approve|reject> ["reason"]');
+    console.error('\nExample: moltycash gig review ppp_123 claim_abc approve');
+    console.error('Example: moltycash gig review ppp_123 claim_abc reject "Does not match the task"');
     process.exit(1);
   }
 
   const gigId = args._[1];
   const claimId = args._[2];
   const action = args._[3];
+  const reason = args._[4] || undefined;
 
   if (!["approve", "reject"].includes(action)) {
     console.error(`\u274c Action must be 'approve' or 'reject', got '${action}'`);
     process.exit(1);
   }
 
-  console.log(`\n\u2696\ufe0f  Resolving claim ${claimId} on gig ${gigId}...`);
-  console.log(`   Action: ${action}\n`);
+  console.log(`\n\u2696\ufe0f  Reviewing claim ${claimId} on gig ${gigId}...`);
+  console.log(`   Action: ${action}`);
+  if (reason) console.log(`   Reason: ${reason}`);
+  console.log();
 
-  const result = await a2aCall("gig.resolve", {
+  const result = await a2aCall("gig.review", {
     gig_id: gigId,
     claim_id: claimId,
     action,
+    ...(reason && { reason }),
   });
 
-  console.log(`\u2705 Dispute resolved!`);
+  console.log(`\u2705 Review submitted!`);
   console.log(`   Claim: ${result.claim_id}`);
   console.log(`   Status: ${result.status}`);
   if (result.message) {
@@ -382,38 +420,113 @@ async function handleResolve(args: minimist.ParsedArgs): Promise<void> {
   }
 }
 
-async function handleDisputes(): Promise<void> {
-  console.log("\n\u26a0\ufe0f  Fetching disputed claims...\n");
+// ───── Earner subcommands ─────
 
-  const result = await a2aCall("gig.disputes", {});
+async function handleList(): Promise<void> {
+  console.log("\n\ud83d\udccb Fetching available gigs...\n");
+  const result = await earnerCall("gig.list", {});
 
-  const disputes = result.disputes || [];
-  if (disputes.length === 0) {
-    console.log("No disputed claims.");
+  if (!result.eligible) {
+    console.log(`\u274c Not eligible: ${result.reason}`);
     return;
   }
 
-  console.log(`Found ${disputes.length} disputed claim(s):\n`);
-  for (const d of disputes) {
-    console.log(`  \u26a0\ufe0f  Gig: ${d.gig_id} \u2014 Claim: ${d.claim_id}`);
-    console.log(`     Condition: ${d.condition}`);
-    console.log(`     Claimer: @${d.claimer_molty}`);
-    console.log(`     Amount: ${d.amount} USDC`);
-    if (d.proof) {
-      console.log(`     Proof: ${d.proof}`);
-    }
-    if (d.ai_review_result?.reason) {
-      console.log(`     AI reason: ${d.ai_review_result.reason}`);
-    }
-    if (d.dispute_reason) {
-      console.log(`     Dispute reason: ${d.dispute_reason}`);
-    }
-    if (d.dispute_deadline) {
-      console.log(`     Deadline: ${d.dispute_deadline}`);
-    }
+  const gigs = result.gigs || [];
+  if (gigs.length === 0) {
+    console.log("No open gigs available.");
+    return;
+  }
+
+  console.log(`Found ${gigs.length} gig(s):\n`);
+  for (const g of gigs) {
+    console.log(`  \ud83d\udfe2 ${g.id}`);
+    console.log(`     ${g.condition}`);
+    console.log(`     ${g.per_post_price} USDC/post \u2014 ${g.remaining_slots} slot(s) left`);
+    console.log(`     Deadline: ${g.deadline}`);
     console.log();
   }
-  console.log(`Resolve with: moltycash gig resolve <gig_id> <claim_id> <approve|reject>`);
+  console.log(`Use 'moltycash gig pick <gig_id>' to reserve a slot.`);
+}
+
+async function handlePick(args: minimist.ParsedArgs): Promise<void> {
+  if (args._.length < 2) {
+    console.error("Usage: moltycash gig pick <gig_id>");
+    process.exit(1);
+  }
+
+  const gigId = args._[1];
+  console.log(`\n\ud83c\udfaf Picking gig ${gigId}...\n`);
+  const result = await earnerCall("gig.pick", { gig_id: gigId });
+
+  console.log(`\u2705 Slot reserved!`);
+  console.log(`   Claim: ${result.claim_id}`);
+  console.log(`   Gig: ${result.gig_id}`);
+  console.log(`   Submit proof by: ${result.assignment_deadline}`);
+  console.log(`   Remaining slots: ${result.remaining_slots}`);
+}
+
+async function handleSubmit(args: minimist.ParsedArgs): Promise<void> {
+  if (args._.length < 3) {
+    console.error("Usage: moltycash gig submit <gig_id> <proof_url>");
+    process.exit(1);
+  }
+
+  const gigId = args._[1];
+  const proof = args._[2];
+  console.log(`\n\ud83d\udce4 Submitting proof for gig ${gigId}...\n`);
+  const result = await earnerCall("gig.submit_proof", { gig_id: gigId, proof });
+
+  console.log(`\u2705 Proof submitted!`);
+  console.log(`   Claim: ${result.claim_id}`);
+  console.log(`   Status: ${result.status}`);
+  if (result.message) console.log(`   ${result.message}`);
+}
+
+async function handleMyClaims(): Promise<void> {
+  console.log("\n\ud83d\udccb Fetching your claims...\n");
+  const result = await earnerCall("gig.my_accepted", {});
+
+  const assignments = result.assignments || [];
+  if (assignments.length === 0) {
+    console.log("No active claims.");
+    return;
+  }
+
+  console.log(`Found ${assignments.length} claim(s):\n`);
+  for (const a of assignments) {
+    const icon = a.status === "completed" ? "\u2705"
+      : a.status === "approved" ? "\u23f3"
+      : a.status === "pending_review" ? "\ud83d\udd0d"
+      : a.status === "assigned" ? "\ud83d\udd12"
+      : a.status === "rejected" ? "\u274c"
+      : a.status === "final_rejected" ? "\u26d4"
+      : a.status === "disputed" ? "\u26a0\ufe0f"
+      : "\u2022";
+    console.log(`  ${icon} ${a.claim_id} [${a.status}]`);
+    console.log(`     Gig: ${a.gig_id} \u2014 ${a.condition}`);
+    console.log(`     ${a.per_post_price} USDC`);
+    if (a.message) console.log(`     ${a.message}`);
+    console.log();
+  }
+}
+
+async function handleDisputeEarner(args: minimist.ParsedArgs): Promise<void> {
+  if (args._.length < 4) {
+    console.error('Usage: moltycash gig dispute <gig_id> <claim_id> "reason"');
+    process.exit(1);
+  }
+
+  const gigId = args._[1];
+  const claimId = args._[2];
+  const reason = args._.slice(3).join(" ");
+
+  console.log(`\n\u2696\ufe0f  Disputing claim ${claimId} on gig ${gigId}...\n`);
+  const result = await earnerCall("gig.earner_dispute", { gig_id: gigId, claim_id: claimId, reason });
+
+  console.log(`\u2705 Dispute resolved!`);
+  console.log(`   Claim: ${result.claim_id}`);
+  console.log(`   Status: ${result.status}`);
+  if (result.message) console.log(`   ${result.message}`);
 }
 
 // ───── Main ─────
@@ -430,7 +543,7 @@ if (!identityToken) {
 const subcommand = args._[0];
 
 if (!subcommand) {
-  console.error("Usage: moltycash gig <create|my-gigs|get|dispute|disputes|resolve>");
+  console.error("Usage: moltycash gig <create|my-gigs|get|review|list|pick|submit|my-claims|dispute>");
   process.exit(1);
 }
 
@@ -446,18 +559,27 @@ async function main(): Promise<void> {
       case "get":
         await handleGet(args);
         break;
+      case "review":
+        await handleReview(args);
+        break;
+      case "list":
+        await handleList();
+        break;
+      case "pick":
+        await handlePick(args);
+        break;
+      case "submit":
+        await handleSubmit(args);
+        break;
+      case "my-claims":
+        await handleMyClaims();
+        break;
       case "dispute":
-        await handleDispute(args);
-        break;
-      case "disputes":
-        await handleDisputes();
-        break;
-      case "resolve":
-        await handleResolve(args);
+        await handleDisputeEarner(args);
         break;
       default:
         console.error(`\u274c Unknown subcommand: ${subcommand}`);
-        console.error("Available: create, my-gigs, get, dispute, disputes, resolve");
+        console.error("Available: create, my-gigs, get, review, list, pick, submit, my-claims, dispute");
         process.exit(1);
     }
   } catch (error: any) {
