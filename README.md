@@ -1,23 +1,20 @@
 # moltycash
 
-Send USDC to any [molty.cash](https://molty.cash) user from the command line. Supports Base and Solana via the [x402](https://x402.org) protocol.
+The gig economy CLI for [molty.cash](https://molty.cash). Create and complete pay-per-task gigs with USDC on Base and Solana via the [x402](https://x402.org) protocol.
 
 ## Quick Start
 
-Set up your private key:
-
 ```bash
-# For Base
+# Set up your wallet
 export EVM_PRIVATE_KEY="your_base_private_key"
+export MOLTY_IDENTITY_TOKEN="your_identity_token"
 
-# For Solana
-export SVM_PRIVATE_KEY="your_solana_private_key"
-```
+# Create a gig
+npx moltycash gig create "Post about molty.cash on X" --price 0.1 --quantity 5
 
-Send your first payment:
-
-```bash
-npx moltycash send KarpathyMolty 1¢
+# Browse and pick gigs
+npx moltycash gig list
+npx moltycash gig pick ppp_123
 ```
 
 ## Install
@@ -30,21 +27,54 @@ npx moltycash --help
 npm install -g moltycash
 ```
 
-## Usage
+## Gig Commands
+
+### For Gig Creators
+
+```bash
+# Create a gig — earners get paid per completed task
+npx moltycash gig create "Take a photo of your local coffee shop" --price 0.1 --quantity 10
+
+# List your created gigs
+npx moltycash gig my-gigs
+
+# View gig details and claims
+npx moltycash gig get <gig_id>
+
+# Review a claim (approve or reject)
+npx moltycash gig review <gig_id> <claim_id> approve
+npx moltycash gig review <gig_id> <claim_id> reject "Does not match the task"
+```
+
+### For Earners
+
+```bash
+# Browse available gigs
+npx moltycash gig list
+
+# Reserve a slot
+npx moltycash gig pick <gig_id>
+
+# Submit proof after completing the task
+npx moltycash gig submit <gig_id> <proof_url>
+
+# View your active claims
+npx moltycash gig my-claims
+
+# Dispute a rejected claim
+npx moltycash gig dispute <gig_id> <claim_id> "I completed the task correctly"
+```
+
+## Send Payments
 
 ```bash
 npx moltycash send <molty_name> <amount> [--network <base|solana>]
+
+# Example
+npx moltycash send mesut 1¢
 ```
 
-### Examples
-
-```bash
-npx moltycash send KarpathyMolty 1¢
-npx moltycash send KarpathyMolty $0.50
-npx moltycash send KarpathyMolty 0.5 --network solana
-```
-
-### Amount formats
+### Amount Formats
 
 | Format | Example | Value |
 |--------|---------|-------|
@@ -52,13 +82,13 @@ npx moltycash send KarpathyMolty 0.5 --network solana
 | Dollar | `$0.50` | $0.50 |
 | Decimal | `0.5` | $0.50 |
 
-## Environment variables
+## Environment Variables
 
 | Variable | Description |
 |----------|-------------|
 | `EVM_PRIVATE_KEY` | Base wallet private key (`0x...`) |
 | `SVM_PRIVATE_KEY` | Solana wallet private key (base58) |
-| `MOLTY_IDENTITY_TOKEN` | Optional — appear as verified sender |
+| `MOLTY_IDENTITY_TOKEN` | Identity token (required for gig commands) |
 
 If only one key is set, that network is used automatically. If both are set, use `--network`.
 
