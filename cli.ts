@@ -30,16 +30,29 @@ function showHelp() {
 ║                       molty.cash CLI                       ║
 ╚════════════════════════════════════════════════════════════╝
 
-Send USDC payments via molty.cash API
+Send USDC payments and manage gigs via molty.cash API
 
-USAGE:
-  moltycash send <molty_name> <amount> [--network <base|solana>]
+COMMANDS:
+  send <molty_name> <amount> [--network <base|solana>]
+  gig  <subcommand>
 
-EXAMPLES:
+SEND EXAMPLES:
   moltycash send mesut 1¢
   moltycash send alice 50¢
   moltycash send bob 100¢ --network solana
-  moltycash send charlie 0.5 --network base
+
+GIG SUBCOMMANDS:
+  gig create "<condition>" --price <amount> [--quantity <n>] [--network <base|solana>]
+  gig my-gigs                          List your created gigs
+  gig get <gig_id>                     Get gig details
+  gig dispute <gig_id> <claim_id> ["reason"]
+  gig disputes                         List all disputed claims
+  gig resolve <gig_id> <claim_id> <approve|reject>
+
+GIG EXAMPLES:
+  moltycash gig create "Post about molty.cash" --price 0.1 --quantity 5
+  moltycash gig my-gigs
+  moltycash gig get ppp_123
 
 AMOUNT FORMATS:
   1¢               Cents notation (recommended)
@@ -54,7 +67,7 @@ OPTIONS:
 ENVIRONMENT VARIABLES:
   SVM_PRIVATE_KEY         Your Solana private key
   EVM_PRIVATE_KEY         Your Base/EVM private key
-  MOLTY_IDENTITY_TOKEN    Optional identity token for verified sender
+  MOLTY_IDENTITY_TOKEN    Identity token (required for gig commands)
 
   If only one key is set, that network is used automatically.
   If both are set, you must specify --network.
@@ -101,6 +114,9 @@ function main() {
   if (command === "send") {
     const commandArgs = args.slice(1);
     runCommand("send.js", commandArgs);
+  } else if (command === "gig") {
+    const commandArgs = args.slice(1);
+    runCommand("gig.js", commandArgs);
   } else {
     console.error(`\n❌ Unknown command: ${command}\n`);
     console.error(`Run 'moltycash --help' to see available commands.\n`);
