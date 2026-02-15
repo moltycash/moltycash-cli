@@ -64,35 +64,74 @@ function parseAmount(amountStr: string): number {
 }
 
 /**
- * Validate molty username
+ * Parse recipient from format: x/USERNAME, moltbook/USERNAME
  */
-function validateMoltyUsername(username: string): void {
-  if (!/^[a-zA-Z0-9_-]{1,30}$/.test(username)) {
-    throw new Error(
-      `Invalid molty username: ${username}. Must be 1-30 alphanumeric characters, underscores, or hyphens.`,
-    );
+interface Recipient {
+  type: "x" | "moltbook";
+  username: string;
+}
+
+function parseRecipient(input: string): Recipient {
+  const slashIndex = input.indexOf("/");
+  if (slashIndex === -1) {
+    console.error(`❌ Invalid recipient format: ${input}`);
+    console.error(`\nUse one of these formats:`);
+    console.error(`  moltbook/USERNAME    Send to a Moltbook user`);
+    console.error(`  x/USERNAME           Send to an X (Twitter) user`);
+    console.error(`\nExamples:`);
+    console.error(`  moltycash send moltbook/KarpathyMolty 1¢`);
+    console.error(`  moltycash send x/nikitabier 50¢`);
+    process.exit(1);
   }
+
+  const platform = input.slice(0, slashIndex).toLowerCase();
+  const username = input.slice(slashIndex + 1);
+
+  if (!username) {
+    throw new Error(`Missing username after "${platform}/"`);
+  }
+
+  const xPrefixes = ["x", "x.com", "twitter", "twitter.com"];
+  const moltbookPrefixes = ["moltbook", "moltbook.com"];
+
+  if (xPrefixes.includes(platform)) {
+    return { type: "x", username };
+  }
+
+  if (moltbookPrefixes.includes(platform)) {
+    if (!/^[a-zA-Z0-9_-]{1,30}$/.test(username)) {
+      throw new Error(
+        `Invalid moltbook username: ${username}. Must be 1-30 alphanumeric characters, underscores, or hyphens.`,
+      );
+    }
+    return { type: "moltbook", username };
+  }
+
+  throw new Error(
+    `Unknown platform: "${platform}". Use "x/" for X users or "moltbook/" for Moltbook users.`,
+  );
 }
 
 const args = minimist(process.argv.slice(2));
 
-let moltyUsername: string;
+let recipient: Recipient;
 let amount: number;
 
 if (args._.length < 2) {
-  console.error("Usage: moltycash send <molty_name> <amount> [--network <base|solana>]");
+  console.error("Usage: moltycash send <recipient> <amount> [--network <base|solana>]");
+  console.error("\nRecipient formats:");
+  console.error("  moltbook/USERNAME    Send to a Moltbook user");
+  console.error("  x/USERNAME           Send to an X (Twitter) user");
   console.error("\nExamples:");
-  console.error("  moltycash send mesut 1¢");
-  console.error("  moltycash send alice 50¢");
-  console.error("  moltycash send bob 100¢ --network solana");
-  console.error("  moltycash send charlie 0.5 --network base");
+  console.error("  moltycash send moltbook/KarpathyMolty 1¢");
+  console.error("  moltycash send x/nikitabier 50¢");
+  console.error("  moltycash send x/nikitabier 100¢ --network solana");
   console.error("\nAmount formats: 100¢ (cents - recommended), 0.5 (decimal)");
   process.exit(1);
 }
 
 try {
-  moltyUsername = args._[0];
-  validateMoltyUsername(moltyUsername);
+  recipient = parseRecipient(String(args._[0]));
   amount = parseAmount(String(args._[1]));
   if (amount <= 0) {
     throw new Error("Amount must be greater than 0");
@@ -171,7 +210,11 @@ async function main(): Promise<void> {
     registerExactEvmScheme(client, { signer: account });
   }
 
-  console.log(`\n💸 Sending ${amount} USDC to @${moltyUsername}...`);
+  const recipientLabel = recipient.type === "moltbook"
+    ? `@${recipient.username}`
+    : `x/@${recipient.username}`;
+
+  console.log(`\n💸 Sending ${amount} USDC to ${recipientLabel}...`);
   console.log(`   API: ${baseURL}/a2a`);
   console.log(`   Network: ${useSolana ? "Solana" : "Base"}`);
   if (identityToken) {
@@ -186,7 +229,8 @@ async function main(): Promise<void> {
   };
 
   const payParams = {
-    molty: moltyUsername,
+    ...(recipient.type === "moltbook" && { molty: recipient.username }),
+    ...(recipient.type === "x" && { x_handle: recipient.username }),
     amount,
     description: `Payment via moltycash-cli (${useSolana ? "Solana" : "Base"})`,
     meta: { agent_name: "moltycash-cli" },
@@ -254,7 +298,8 @@ async function main(): Promise<void> {
       if (artifact.data) {
         try {
           const data = JSON.parse(Buffer.from(artifact.data, "base64").toString());
-          console.log(`✅ ${data.amount} USDC sent to @${data.molty || moltyUsername}`);
+          const displayName = data.molty ? `@${data.molty}` : data.x_handle ? `x/@${data.x_handle}` : recipientLabel;
+          console.log(`✅ ${data.amount} USDC sent to ${displayName}`);
           if (data.txn_id) {
             console.log(`🔗 TXN: ${data.txn_id}`);
           }

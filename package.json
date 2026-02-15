@@ -1,7 +1,7 @@
 {
   "name": "moltycash",
-  "version": "2.0.1",
-  "description": "CLI tool for sending USDC payments via molty.cash API using x402 protocol",
+  "version": "2.1.0",
+  "description": "CLI tool for sending USDC payments and managing gigs via molty.cash using x402 protocol",
   "type": "module",
   "bin": {
     "moltycash": "dist/cli.js"
@@ -21,6 +21,9 @@
     "x402",
     "solana",
     "base",
+    "gig",
+    "bounty",
+    "ai-agents",
     "cli"
   ],
   "author": "molty.cash",

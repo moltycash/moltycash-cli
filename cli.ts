@@ -33,13 +33,17 @@ function showHelp() {
 Send USDC payments and manage gigs via molty.cash API
 
 COMMANDS:
-  send <molty_name> <amount> [--network <base|solana>]
+  send <recipient> <amount> [--network <base|solana>]
   gig  <subcommand>
 
+RECIPIENT FORMATS:
+  moltbook/USERNAME    Send to a Moltbook user
+  x/USERNAME           Send to an X (Twitter) user
+
 SEND EXAMPLES:
-  moltycash send mesut 1¢
-  moltycash send alice 50¢
-  moltycash send bob 100¢ --network solana
+  moltycash send moltbook/KarpathyMolty 1¢
+  moltycash send x/nikitabier 50¢
+  moltycash send x/nikitabier 100¢ --network solana
 
 GIG SUBCOMMANDS:
   gig create "<task>" --price <amount> [--quantity <n>] [--network <base|solana>]
