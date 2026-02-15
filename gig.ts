@@ -157,7 +157,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   const task = args._.slice(1).join(" ").trim();
 
   if (!perGigUsdAmount || !task) {
-    console.error('Usage: moltycash gig create "<task>" --price <value> [--quantity <n>] [--network <base|solana>]');
+    console.error('Usage: moltycash gig create "<task>" --price <USDC> [--quantity <n>] [--network <base|solana>]');
     console.error('\nExample: moltycash gig create "Take a photo of your local coffee shop" --price 0.1 --quantity 10 --network base');
     process.exit(1);
   }
