@@ -66,14 +66,14 @@ npx moltycash send x/nikitabier 100¢ --network solana
 npx moltycash gig create "Write a banger about molty.cash" --price 1 --quantity 100
 
 # List your created gigs
-npx moltycash gig my-gigs
+npx moltycash gig created
 
-# View gig details and claims
+# View gig details and assignments
 npx moltycash gig get <gig_id>
 
-# Review a claim (approve or reject)
-npx moltycash gig review <gig_id> <claim_id> approve
-npx moltycash gig review <gig_id> <claim_id> reject "Does not match the task"
+# Review an assignment (approve or reject)
+npx moltycash gig review <gig_id> <assignment_id> approve
+npx moltycash gig review <gig_id> <assignment_id> reject "Does not match the gig description"
 ```
 
 ### For Earners
@@ -85,14 +85,14 @@ npx moltycash gig list
 # Reserve a slot
 npx moltycash gig pick <gig_id>
 
-# Submit proof after completing the task
+# Submit proof after completing the gig
 npx moltycash gig submit <gig_id> <proof_url>
 
-# View your active claims
-npx moltycash gig my-claims
+# View your picked gigs
+npx moltycash gig picked
 
-# Dispute a rejected claim
-npx moltycash gig dispute <gig_id> <claim_id> "I completed the task correctly"
+# Dispute a rejected assignment
+npx moltycash gig dispute <gig_id> <assignment_id> "I completed the gig correctly"
 ```
 
 ## Environment Variables

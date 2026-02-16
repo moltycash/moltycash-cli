@@ -154,10 +154,10 @@ async function earnerCall(method: string, params: Record<string, unknown>): Prom
 async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   const perGigUsdAmount = args.price;
   const quantity = args.quantity || 1;
-  const task = args._.slice(1).join(" ").trim();
+  const description = args._.slice(1).join(" ").trim();
 
-  if (!perGigUsdAmount || !task) {
-    console.error('Usage: moltycash gig create "<task>" --price <USDC> [--quantity <n>] [--network <base|solana>]');
+  if (!perGigUsdAmount || !description) {
+    console.error('Usage: moltycash gig create "<description>" --price <USDC> [--quantity <n>] [--network <base|solana>]');
     console.error('\nExample: moltycash gig create "Take a photo of your local coffee shop" --price 0.1 --quantity 10 --network base');
     process.exit(1);
   }
@@ -175,8 +175,8 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
     process.exit(1);
   }
 
-  if (task.length > 500) {
-    console.error(`\u274c Task description too long (${task.length} chars). Max 500 characters.`);
+  if (description.length > 500) {
+    console.error(`\u274c Description too long (${description.length} chars). Max 500 characters.`);
     process.exit(1);
   }
 
@@ -239,14 +239,14 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   const totalSlots = Math.floor(amount / perPostPrice);
   console.log(`\n\ud83c\udfaf Creating gig: ${totalSlots} slot(s) at ${perPostPrice} USDC each (total: ${amount} USDC)`);
   console.log(`   Network: ${useSolana! ? "Solana" : "Base"}`);
-  console.log(`   Task: ${task}`);
+  console.log(`   Description: ${description}`);
   console.log();
 
   // Phase 1: Get payment requirements
   console.log("\ud83d\udcb3 Phase 1: Requesting payment requirements...");
   const phase1Result = await a2aCall(
     "gig.create",
-    { amount, per_post_price: perPostPrice, task },
+    { amount, per_post_price: perPostPrice, description },
     { "X-A2A-Extensions": X402_EXTENSION_URI },
   );
 
@@ -269,7 +269,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
     {
       amount,
       per_post_price: perPostPrice,
-      task,
+      description,
       taskId: phase1Result.id,
       payment: signedPayment,
     },
@@ -286,7 +286,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
         console.log(`   ID: ${data.gig_id}`);
         console.log(`   Slots: ${data.total_slots}`);
         console.log(`   Per post: ${data.per_post_price} USDC`);
-        console.log(`   Task: ${data.task}`);
+        console.log(`   Description: ${data.description}`);
         console.log(`   Deadline: ${data.deadline}`);
         if (data.transaction_hash) {
           console.log(`   TXN: ${data.transaction_hash}`);
@@ -306,8 +306,8 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   console.log(`\u2705 ${msg || "Gig created"}`);
 }
 
-async function handleMyGigs(): Promise<void> {
-  console.log("\n\ud83d\udccb Fetching your gigs...\n");
+async function handleCreated(): Promise<void> {
+  console.log("\n\ud83d\udccb Fetching your created gigs...\n");
 
   const result = await a2aCall("gig.my_created", {});
 
@@ -321,8 +321,8 @@ async function handleMyGigs(): Promise<void> {
   for (const b of gigs) {
     const statusIcon = b.status === "open" ? "\ud83d\udfe2" : b.status === "completed" ? "\u2705" : "\u23f0";
     console.log(`  ${statusIcon} ${b.id} [${b.status}]`);
-    console.log(`     ${b.task}`);
-    console.log(`     ${b.amount} USDC (${b.per_post_price}/post) \u2014 ${b.claimed_slots}/${b.total_slots} claimed`);
+    console.log(`     ${b.description}`);
+    console.log(`     ${b.amount} USDC (${b.per_post_price}/post) \u2014 ${b.completed_slots}/${b.total_slots} completed`);
     console.log(`     Deadline: ${b.deadline}`);
     console.log();
   }
@@ -342,9 +342,9 @@ async function handleGet(args: minimist.ParsedArgs): Promise<void> {
 
   const statusIcon = result.status === "open" ? "\ud83d\udfe2" : result.status === "completed" ? "\u2705" : "\u23f0";
   console.log(`${statusIcon} ${result.id} [${result.status}]`);
-  console.log(`   Task: ${result.task}`);
+  console.log(`   Description: ${result.description}`);
   console.log(`   Amount: ${result.amount} USDC (${result.per_post_price} per post)`);
-  console.log(`   Slots: ${result.claimed_slots} claimed / ${result.assigned_slots} assigned / ${result.total_slots} total`);
+  console.log(`   Slots: ${result.completed_slots} completed / ${result.assigned_slots} assigned / ${result.total_slots} total`);
   console.log(`   Remaining: ${result.remaining_slots}`);
   console.log(`   Network: ${result.payment_network}`);
   console.log(`   Deadline: ${result.deadline}`);
@@ -353,45 +353,45 @@ async function handleGet(args: minimist.ParsedArgs): Promise<void> {
     console.log(`   TXN: ${result.settlement_txn_hash}`);
   }
 
-  const claims = result.claims || [];
-  if (claims.length > 0) {
-    console.log(`\n   Claims (${claims.length}):`);
-    for (const c of claims) {
-      const claimIcon = c.status === "completed" ? "\u2705"
-        : c.status === "approved" ? "\u23f3"
-        : c.status === "pending_review" ? "\ud83d\udd0d"
-        : c.status === "assigned" ? "\ud83d\udd12"
-        : c.status === "rejected" ? "\u274c"
-        : c.status === "final_rejected" ? "\u26d4"
-        : c.status === "disputed" ? "\u26a0\ufe0f"
+  const assignments = result.assignments || [];
+  if (assignments.length > 0) {
+    console.log(`\n   Assignments (${assignments.length}):`);
+    for (const a of assignments) {
+      const icon = a.status === "completed" ? "\u2705"
+        : a.status === "approved" ? "\u23f3"
+        : a.status === "pending_review" ? "\ud83d\udd0d"
+        : a.status === "assigned" ? "\ud83d\udd12"
+        : a.status === "rejected" ? "\u274c"
+        : a.status === "final_rejected" ? "\u26d4"
+        : a.status === "disputed" ? "\u26a0\ufe0f"
         : "\u2022";
-      console.log(`     ${claimIcon} @${c.claimer_molty} \u2014 ${c.status} \u2014 ${c.amount} USDC`);
-      if (c.proof) {
-        console.log(`        Proof: ${c.proof}`);
+      console.log(`     ${icon} @${a.earner} \u2014 ${a.status} \u2014 ${a.amount} USDC`);
+      if (a.proof) {
+        console.log(`        Proof: ${a.proof}`);
       }
-      if (c.ai_review_result?.reason) {
-        console.log(`        AI: ${c.ai_review_result.reason}`);
+      if (a.ai_review_result?.reason) {
+        console.log(`        AI: ${a.ai_review_result.reason}`);
       }
-      if (c.status === "assigned" && c.assignment_deadline) {
-        console.log(`        Submit by: ${c.assignment_deadline}`);
+      if (a.status === "assigned" && a.assignment_deadline) {
+        console.log(`        Submit by: ${a.assignment_deadline}`);
       }
     }
   } else {
-    console.log(`\n   No claims yet.`);
+    console.log(`\n   No assignments yet.`);
   }
   console.log();
 }
 
 async function handleReview(args: minimist.ParsedArgs): Promise<void> {
   if (args._.length < 4) {
-    console.error('Usage: moltycash gig review <gig_id> <claim_id> <approve|reject> ["reason"]');
-    console.error('\nExample: moltycash gig review ppp_123 claim_abc approve');
-    console.error('Example: moltycash gig review ppp_123 claim_abc reject "Does not match the task"');
+    console.error('Usage: moltycash gig review <gig_id> <assignment_id> <approve|reject> ["reason"]');
+    console.error('\nExample: moltycash gig review ppp_123 asgn_abc approve');
+    console.error('Example: moltycash gig review ppp_123 asgn_abc reject "Does not match the gig description"');
     process.exit(1);
   }
 
   const gigId = args._[1];
-  const claimId = args._[2];
+  const assignmentId = args._[2];
   const action = args._[3];
   const reason = args._[4] || undefined;
 
@@ -400,20 +400,20 @@ async function handleReview(args: minimist.ParsedArgs): Promise<void> {
     process.exit(1);
   }
 
-  console.log(`\n\u2696\ufe0f  Reviewing claim ${claimId} on gig ${gigId}...`);
+  console.log(`\n\u2696\ufe0f  Reviewing assignment ${assignmentId} on gig ${gigId}...`);
   console.log(`   Action: ${action}`);
   if (reason) console.log(`   Reason: ${reason}`);
   console.log();
 
   const result = await a2aCall("gig.review", {
     gig_id: gigId,
-    claim_id: claimId,
+    assignment_id: assignmentId,
     action,
     ...(reason && { reason }),
   });
 
   console.log(`\u2705 Review submitted!`);
-  console.log(`   Claim: ${result.claim_id}`);
+  console.log(`   Assignment: ${result.assignment_id}`);
   console.log(`   Status: ${result.status}`);
   if (result.message) {
     console.log(`   ${result.message}`);
@@ -440,7 +440,7 @@ async function handleList(): Promise<void> {
   console.log(`Found ${gigs.length} gig(s):\n`);
   for (const g of gigs) {
     console.log(`  \ud83d\udfe2 ${g.id}`);
-    console.log(`     ${g.task}`);
+    console.log(`     ${g.description}`);
     console.log(`     ${g.per_post_price} USDC/post \u2014 ${g.remaining_slots} slot(s) left`);
     console.log(`     Deadline: ${g.deadline}`);
     console.log();
@@ -459,7 +459,7 @@ async function handlePick(args: minimist.ParsedArgs): Promise<void> {
   const result = await earnerCall("gig.pick", { gig_id: gigId });
 
   console.log(`\u2705 Slot reserved!`);
-  console.log(`   Claim: ${result.claim_id}`);
+  console.log(`   Assignment: ${result.assignment_id}`);
   console.log(`   Gig: ${result.gig_id}`);
   console.log(`   Submit proof by: ${result.assignment_deadline}`);
   console.log(`   Remaining slots: ${result.remaining_slots}`);
@@ -477,22 +477,22 @@ async function handleSubmit(args: minimist.ParsedArgs): Promise<void> {
   const result = await earnerCall("gig.submit_proof", { gig_id: gigId, proof });
 
   console.log(`\u2705 Proof submitted!`);
-  console.log(`   Claim: ${result.claim_id}`);
+  console.log(`   Assignment: ${result.assignment_id}`);
   console.log(`   Status: ${result.status}`);
   if (result.message) console.log(`   ${result.message}`);
 }
 
-async function handleMyClaims(): Promise<void> {
-  console.log("\n\ud83d\udccb Fetching your claims...\n");
+async function handlePicked(): Promise<void> {
+  console.log("\n\ud83d\udccb Fetching your picked gigs...\n");
   const result = await earnerCall("gig.my_accepted", {});
 
   const assignments = result.assignments || [];
   if (assignments.length === 0) {
-    console.log("No active claims.");
+    console.log("No picked gigs.");
     return;
   }
 
-  console.log(`Found ${assignments.length} claim(s):\n`);
+  console.log(`Found ${assignments.length} gig(s):\n`);
   for (const a of assignments) {
     const icon = a.status === "completed" ? "\u2705"
       : a.status === "approved" ? "\u23f3"
@@ -502,8 +502,8 @@ async function handleMyClaims(): Promise<void> {
       : a.status === "final_rejected" ? "\u26d4"
       : a.status === "disputed" ? "\u26a0\ufe0f"
       : "\u2022";
-    console.log(`  ${icon} ${a.claim_id} [${a.status}]`);
-    console.log(`     Gig: ${a.gig_id} \u2014 ${a.task}`);
+    console.log(`  ${icon} ${a.assignment_id} [${a.status}]`);
+    console.log(`     Gig: ${a.gig_id} \u2014 ${a.description}`);
     console.log(`     ${a.per_post_price} USDC`);
     if (a.message) console.log(`     ${a.message}`);
     console.log();
@@ -512,19 +512,19 @@ async function handleMyClaims(): Promise<void> {
 
 async function handleDisputeEarner(args: minimist.ParsedArgs): Promise<void> {
   if (args._.length < 4) {
-    console.error('Usage: moltycash gig dispute <gig_id> <claim_id> "reason"');
+    console.error('Usage: moltycash gig dispute <gig_id> <assignment_id> "reason"');
     process.exit(1);
   }
 
   const gigId = args._[1];
-  const claimId = args._[2];
+  const assignmentId = args._[2];
   const reason = args._.slice(3).join(" ");
 
-  console.log(`\n\u2696\ufe0f  Disputing claim ${claimId} on gig ${gigId}...\n`);
-  const result = await earnerCall("gig.earner_dispute", { gig_id: gigId, claim_id: claimId, reason });
+  console.log(`\n\u2696\ufe0f  Disputing assignment ${assignmentId} on gig ${gigId}...\n`);
+  const result = await earnerCall("gig.earner_dispute", { gig_id: gigId, assignment_id: assignmentId, reason });
 
   console.log(`\u2705 Dispute resolved!`);
-  console.log(`   Claim: ${result.claim_id}`);
+  console.log(`   Assignment: ${result.assignment_id}`);
   console.log(`   Status: ${result.status}`);
   if (result.message) console.log(`   ${result.message}`);
 }
@@ -543,7 +543,7 @@ if (!identityToken) {
 const subcommand = args._[0];
 
 if (!subcommand) {
-  console.error("Usage: moltycash gig <create|my-gigs|get|review|list|pick|submit|my-claims|dispute>");
+  console.error("Usage: moltycash gig <create|created|get|review|list|pick|submit|picked|dispute>");
   process.exit(1);
 }
 
@@ -553,8 +553,8 @@ async function main(): Promise<void> {
       case "create":
         await handleCreate(args);
         break;
-      case "my-gigs":
-        await handleMyGigs();
+      case "created":
+        await handleCreated();
         break;
       case "get":
         await handleGet(args);
@@ -571,15 +571,15 @@ async function main(): Promise<void> {
       case "submit":
         await handleSubmit(args);
         break;
-      case "my-claims":
-        await handleMyClaims();
+      case "picked":
+        await handlePicked();
         break;
       case "dispute":
         await handleDisputeEarner(args);
         break;
       default:
         console.error(`\u274c Unknown subcommand: ${subcommand}`);
-        console.error("Available: create, my-gigs, get, review, list, pick, submit, my-claims, dispute");
+        console.error("Available: create, created, get, review, list, pick, submit, picked, dispute");
         process.exit(1);
     }
   } catch (error: any) {
