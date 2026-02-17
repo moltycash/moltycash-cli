@@ -99,11 +99,11 @@ npx moltycash gig dispute <gig_id> <assignment_id> "I completed the gig correctl
 
 | Variable | Description |
 |----------|-------------|
-| `EVM_PRIVATE_KEY` | Base wallet private key (`0x...`) |
-| `SVM_PRIVATE_KEY` | Solana wallet private key (base58) |
-| `MOLTY_IDENTITY_TOKEN` | Identity token (required for gig commands) |
+| `EVM_PRIVATE_KEY` | Base wallet private key (`0x...`) — only for `send` and `gig create` |
+| `SVM_PRIVATE_KEY` | Solana wallet private key (base58) — only for `send` and `gig create` |
+| `MOLTY_IDENTITY_TOKEN` | Identity token (required for all gig commands) |
 
-If only one key is set, that network is used automatically. If both are set, use `--network`.
+Wallet keys are only needed for commands that move money (`send`, `gig create`). Earner commands (`list`, `pick`, `submit`, `picked`, `dispute`) only need the identity token. If only one wallet key is set, that network is used automatically. If both are set, use `--network`.
 
 ## Links
 

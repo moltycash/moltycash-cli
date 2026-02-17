@@ -90,75 +90,6 @@ async function a2aCall(
   return response.data.result;
 }
 
-// ───── x402 helpers ─────
-
-async function createSignedClient(): Promise<x402Client> {
-  const client = new x402Client();
-  const hasEvmKey = !!privateKey;
-  const hasSvmKey = !!svmPrivateKey;
-
-  if (!hasEvmKey && !hasSvmKey) {
-    console.error("\u274c No private keys found. Set EVM_PRIVATE_KEY or SVM_PRIVATE_KEY.");
-    process.exit(1);
-  }
-
-  if (hasEvmKey) {
-    if (!privateKey.startsWith("0x")) {
-      console.error("\u274c EVM_PRIVATE_KEY must start with '0x'");
-      process.exit(1);
-    }
-    const account = privateKeyToAccount(privateKey);
-    registerExactEvmScheme(client, { signer: account });
-  }
-
-  if (hasSvmKey) {
-    const privateKeyBytes = bs58.decode(svmPrivateKey);
-    const solanaSigner = await createKeyPairSignerFromBytes(privateKeyBytes);
-    registerExactSvmScheme(client, { signer: solanaSigner });
-  }
-
-  return client;
-}
-
-async function earnerCall(method: string, params: Record<string, unknown>): Promise<any> {
-  const client = await createSignedClient();
-
-  // Phase 1: Get payment requirements
-  const phase1 = await a2aCall(method, params, { "X-A2A-Extensions": X402_EXTENSION_URI });
-  const paymentRequired = phase1.status?.message?.metadata?.["x402.payment.required"];
-  if (!paymentRequired) throw new Error("No payment requirements in response");
-
-  // Phase 2: Sign and submit payment
-  const signedPayment = await client.createPaymentPayload(paymentRequired);
-  const phase2 = await a2aCall(
-    method,
-    { ...params, taskId: phase1.id, payment: signedPayment },
-    { "X-A2A-Extensions": X402_EXTENSION_URI },
-  );
-
-  // Check for task failure
-  const taskState = phase2.status?.state;
-  if (taskState === "failed" || taskState === "canceled") {
-    const errMsg = phase2.status?.message?.parts
-      ?.filter((p: any) => p.kind === "text")
-      .map((p: any) => p.text)
-      .join("\n");
-    throw new Error(errMsg || `${method} failed`);
-  }
-
-  // Extract result from artifact
-  const artifacts = phase2.artifacts || [];
-  for (const artifact of artifacts) {
-    if (artifact.data) {
-      try {
-        return JSON.parse(Buffer.from(artifact.data, "base64").toString());
-      } catch {}
-    }
-  }
-
-  return phase2;
-}
-
 // ───── Payer subcommands ─────
 
 async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
@@ -441,7 +372,7 @@ async function handleReview(args: minimist.ParsedArgs): Promise<void> {
 
 async function handleList(): Promise<void> {
   console.log("\n\ud83d\udccb Fetching available gigs...\n");
-  const result = await earnerCall("gig.list", {});
+  const result = await a2aCall("gig.list", {});
 
   if (!result.eligible) {
     console.log(`\u274c Not eligible: ${result.reason}`);
@@ -473,7 +404,7 @@ async function handlePick(args: minimist.ParsedArgs): Promise<void> {
 
   const gigId = args._[1];
   console.log(`\n\ud83c\udfaf Picking gig ${gigId}...\n`);
-  const result = await earnerCall("gig.pick", { gig_id: gigId });
+  const result = await a2aCall("gig.pick", { gig_id: gigId });
 
   console.log(`\u2705 Slot reserved!`);
   console.log(`   Assignment: ${result.assignment_id}`);
@@ -491,7 +422,7 @@ async function handleSubmit(args: minimist.ParsedArgs): Promise<void> {
   const gigId = args._[1];
   const proof = args._[2];
   console.log(`\n\ud83d\udce4 Submitting proof for gig ${gigId}...\n`);
-  const result = await earnerCall("gig.submit_proof", { gig_id: gigId, proof });
+  const result = await a2aCall("gig.submit_proof", { gig_id: gigId, proof });
 
   console.log(`\u2705 Proof submitted!`);
   console.log(`   Assignment: ${result.assignment_id}`);
@@ -501,7 +432,7 @@ async function handleSubmit(args: minimist.ParsedArgs): Promise<void> {
 
 async function handlePicked(): Promise<void> {
   console.log("\n\ud83d\udccb Fetching your picked gigs...\n");
-  const result = await earnerCall("gig.my_accepted", {});
+  const result = await a2aCall("gig.my_accepted", {});
 
   const assignments = result.assignments || [];
   if (assignments.length === 0) {
@@ -538,7 +469,7 @@ async function handleDisputeEarner(args: minimist.ParsedArgs): Promise<void> {
   const reason = args._.slice(3).join(" ");
 
   console.log(`\n\u2696\ufe0f  Disputing assignment ${assignmentId} on gig ${gigId}...\n`);
-  const result = await earnerCall("gig.earner_dispute", { gig_id: gigId, assignment_id: assignmentId, reason });
+  const result = await a2aCall("gig.earner_dispute", { gig_id: gigId, assignment_id: assignmentId, reason });
 
   console.log(`\u2705 Dispute resolved!`);
   console.log(`   Assignment: ${result.assignment_id}`);
