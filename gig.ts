@@ -96,9 +96,12 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   const perGigUsdAmount = args.price;
   const quantity = args.quantity || 1;
   const description = args._.slice(1).join(" ").trim();
+  const minFollowers = args["min-followers"] ? parseInt(String(args["min-followers"]), 10) : undefined;
+  const requirePremium = !!args["require-premium"];
+  const minAccountAge = args["min-account-age"] ? parseInt(String(args["min-account-age"]), 10) : undefined;
 
   if (!perGigUsdAmount || !description) {
-    console.error('Usage: moltycash gig create "<description>" --price <USDC> [--quantity <n>] [--network <base|solana>]');
+    console.error('Usage: moltycash gig create "<description>" --price <USDC> [--quantity <n>] [--network <base|solana>] [--min-followers <n>] [--require-premium] [--min-account-age <days>]');
     console.error('\nExample: moltycash gig create "Take a photo of your local coffee shop" --price 0.1 --quantity 10 --network base');
     process.exit(1);
   }
@@ -178,16 +181,24 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   }
 
   const totalSlots = Math.floor(amount / perPostPrice);
+  const eligibilityParams: Record<string, unknown> = {};
+  if (minFollowers !== undefined) eligibilityParams.min_followers = minFollowers;
+  if (requirePremium) eligibilityParams.require_premium = true;
+  if (minAccountAge !== undefined) eligibilityParams.min_account_age_days = minAccountAge;
+
   console.log(`\n\ud83c\udfaf Creating gig: ${totalSlots} slot(s) at ${perPostPrice} USDC each (total: ${amount} USDC)`);
   console.log(`   Network: ${useSolana! ? "Solana" : "Base"}`);
   console.log(`   Description: ${description}`);
+  if (minFollowers !== undefined) console.log(`   Min followers: ${minFollowers}`);
+  if (requirePremium) console.log(`   Require premium: yes`);
+  if (minAccountAge !== undefined) console.log(`   Min account age: ${minAccountAge} days`);
   console.log();
 
   // Phase 1: Get payment requirements
   console.log("\ud83d\udcb3 Phase 1: Requesting payment requirements...");
   const phase1Result = await a2aCall(
     "gig.create",
-    { amount, per_post_price: perPostPrice, description },
+    { amount, per_post_price: perPostPrice, description, ...eligibilityParams },
     { "X-A2A-Extensions": X402_EXTENSION_URI },
   );
 
@@ -211,6 +222,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
       amount,
       per_post_price: perPostPrice,
       description,
+      ...eligibilityParams,
       taskId: phase1Result.id,
       payment: signedPayment,
     },
