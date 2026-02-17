@@ -136,6 +136,16 @@ async function earnerCall(method: string, params: Record<string, unknown>): Prom
     { "X-A2A-Extensions": X402_EXTENSION_URI },
   );
 
+  // Check for task failure
+  const taskState = phase2.status?.state;
+  if (taskState === "failed" || taskState === "canceled") {
+    const errMsg = phase2.status?.message?.parts
+      ?.filter((p: any) => p.kind === "text")
+      .map((p: any) => p.text)
+      .join("\n");
+    throw new Error(errMsg || `${method} failed`);
+  }
+
   // Extract result from artifact
   const artifacts = phase2.artifacts || [];
   for (const artifact of artifacts) {
@@ -298,11 +308,18 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
     }
   }
 
-  // Fallback: print status message
+  // Check task state for failures
+  const taskState = phase2Result.status?.state;
   const msg = phase2Result.status?.message?.parts
     ?.filter((p: any) => p.kind === "text")
     .map((p: any) => p.text)
     .join("\n");
+
+  if (taskState === "failed" || taskState === "canceled") {
+    console.error(`\u274c ${msg || "Gig creation failed"}`);
+    process.exit(1);
+  }
+
   console.log(`\u2705 ${msg || "Gig created"}`);
 }
 
