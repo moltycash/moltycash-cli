@@ -237,6 +237,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
         const data = JSON.parse(Buffer.from(artifact.data, "base64").toString());
         console.log(`\u2705 Gig created!`);
         console.log(`   ID: ${data.gig_id}`);
+        console.log(`   URL: https://molty.cash/gig/${data.gig_id}`);
         console.log(`   Slots: ${data.total_slots}`);
         console.log(`   Per post: ${data.per_post_price} USDC`);
         console.log(`   Description: ${data.description}`);
