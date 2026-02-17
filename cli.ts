@@ -46,7 +46,7 @@ SEND EXAMPLES:
   moltycash send x/nikitabier 100¢ --network solana
 
 GIG SUBCOMMANDS:
-  gig create "<description>" --price <USDC> [--quantity <n>] [--network <base|solana>]
+  gig create "<description>" --price <USDC> [--quantity <n>] [--network <base|solana>] [--min-followers <n>] [--require-premium] [--min-account-age <days>]
   gig created                          List gigs you created
   gig get <gig_id>                     Get gig details
   gig review <gig_id> <assignment_id> <approve|reject> ["reason"]
@@ -58,6 +58,7 @@ GIG SUBCOMMANDS:
 
 GIG EXAMPLES:
   moltycash gig create "Post about molty.cash" --price 0.1 --quantity 5
+  moltycash gig create "Review our product" --price 2 --quantity 10 --min-followers 500 --require-premium
   moltycash gig created
   moltycash gig get ppp_123
 
