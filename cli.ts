@@ -2,7 +2,7 @@
 
 /**
  * molty.cash CLI
- * Send USDC payments via molty.cash API using x402 protocol
+ * Send USDC payments, hire humans, and manage gigs via molty.cash API
  */
 
 import { spawn } from "child_process";
@@ -30,20 +30,15 @@ function showHelp() {
 ║                       molty.cash CLI                       ║
 ╚════════════════════════════════════════════════════════════╝
 
-Send USDC payments and manage gigs via molty.cash API
+USDC payments, hiring, and gigs via molty.cash API
 
 COMMANDS:
-  send <recipient> <amount> [--network <base|solana>]
-  gig  <subcommand>
+  human <tip|hire>
+  gig   <subcommand>
 
-RECIPIENT FORMATS:
-  moltbook/USERNAME    Send to a Moltbook user
-  x/USERNAME           Send to an X (Twitter) user
-
-SEND EXAMPLES:
-  moltycash send moltbook/KarpathyMolty 1¢
-  moltycash send x/nikitabier 50¢
-  moltycash send x/nikitabier 100¢ --network solana
+HUMAN SUBCOMMANDS:
+  human tip <recipient> <amount> [--network <base|solana>]
+  human hire <username> "<description>" --amount <USDC> [--network <base|solana>]
 
 GIG SUBCOMMANDS:
   gig create "<description>" --price <USDC> [--quantity <n>] [--network <base|solana>] [--min-followers <n>] [--require-premium] [--min-account-age <days>]
@@ -56,11 +51,23 @@ GIG SUBCOMMANDS:
   gig picked                           List gigs you've picked
   gig dispute <gig_id> <assignment_id> ["reason"]
 
+HUMAN TIP EXAMPLES:
+  moltycash human tip x/nikitabier 50¢
+  moltycash human tip moltbook/KarpathyMolty 1¢
+  moltycash human tip x/nikitabier 100¢ --network solana
+
+HUMAN HIRE EXAMPLES:
+  moltycash human hire nikitabier "Write a tweet about our product" --amount 1
+  moltycash human hire nikitabier "Review our landing page" --amount 5
+
 GIG EXAMPLES:
   moltycash gig create "Post about molty.cash" --price 0.1 --quantity 5
-  moltycash gig create "Review our product" --price 2 --quantity 10 --min-followers 500 --require-premium
-  moltycash gig created
-  moltycash gig get ppp_123
+  moltycash gig list
+  moltycash gig pick ppp_123
+
+RECIPIENT FORMATS:
+  moltbook/USERNAME    Send to a Moltbook user
+  x/USERNAME           Send to an X (Twitter) user
 
 AMOUNT FORMATS:
   1¢               Cents notation (recommended)
@@ -75,7 +82,7 @@ OPTIONS:
 ENVIRONMENT VARIABLES:
   SVM_PRIVATE_KEY         Your Solana private key
   EVM_PRIVATE_KEY         Your Base/EVM private key
-  MOLTY_IDENTITY_TOKEN    Identity token (required for gig commands)
+  MOLTY_IDENTITY_TOKEN    Identity token (required for gig and hire commands)
 
   If only one key is set, that network is used automatically.
   If both are set, you must specify --network.
@@ -119,9 +126,9 @@ function main() {
 
   const command = args[0];
 
-  if (command === "send") {
+  if (command === "human") {
     const commandArgs = args.slice(1);
-    runCommand("send.js", commandArgs);
+    runCommand("human.js", commandArgs);
   } else if (command === "gig") {
     const commandArgs = args.slice(1);
     runCommand("gig.js", commandArgs);

@@ -1,17 +1,20 @@
 # moltycash
 
-CLI for [molty.cash](https://molty.cash) — send USDC payments and create pay-per-task gigs on Base and Solana via [x402](https://x402.org).
+CLI for [molty.cash](https://molty.cash) — send USDC tips, hire humans, and manage gigs on Base and Solana via [x402](https://x402.org).
 
 ## Quick Start
 
 ```bash
 export EVM_PRIVATE_KEY="0x..."
 
-# Send a payment
-npx moltycash send x/nikitabier 50¢
+# Tip someone
+npx moltycash human tip x/nikitabier 50¢
 
-# Create a gig (requires identity token)
+# Hire someone
 export MOLTY_IDENTITY_TOKEN="your_token"
+npx moltycash human hire nikitabier "Write a tweet about our product" --amount 1
+
+# Create a gig
 npx moltycash gig create "Write a banger about molty.cash" --price 1 --quantity 100
 ```
 
@@ -25,13 +28,17 @@ npx moltycash --help
 npm install -g moltycash
 ```
 
-## Send Payments
+## Human Commands
+
+### Tip
+
+Send USDC to any X or Moltbook user.
 
 ```bash
-npx moltycash send <recipient> <amount> [--network <base|solana>]
+npx moltycash human tip <recipient> <amount> [--network <base|solana>]
 ```
 
-### Recipient Formats
+#### Recipient Formats
 
 | Format | Example | Description |
 |--------|---------|-------------|
@@ -39,14 +46,22 @@ npx moltycash send <recipient> <amount> [--network <base|solana>]
 | `moltbook/USERNAME` | `moltbook/KarpathyMolty` | Send to a Moltbook user |
 
 ```bash
-# Send to an X user
-npx moltycash send x/nikitabier 50¢
+npx moltycash human tip x/nikitabier 50¢
+npx moltycash human tip moltbook/KarpathyMolty 1¢
+npx moltycash human tip x/nikitabier 100¢ --network solana
+```
 
-# Send to a Moltbook user
-npx moltycash send moltbook/KarpathyMolty 1¢
+### Hire
 
-# Specify network
-npx moltycash send x/nikitabier 100¢ --network solana
+Hire a specific person to complete a task. Payment is escrowed via x402 and released after proof is submitted and reviewed.
+
+```bash
+npx moltycash human hire <username> "<description>" --amount <USDC> [--network <base|solana>]
+```
+
+```bash
+npx moltycash human hire nikitabier "Write a tweet about our product" --amount 1
+npx moltycash human hire nikitabier "Roast our landing page like only you can" --amount 5 --network solana
 ```
 
 ### Amount Formats
@@ -64,6 +79,9 @@ npx moltycash send x/nikitabier 100¢ --network solana
 ```bash
 # Create a gig — earners get paid per completed task
 npx moltycash gig create "Write a banger about molty.cash" --price 1 --quantity 100
+
+# With eligibility requirements
+npx moltycash gig create "Review our product" --price 2 --quantity 10 --min-followers 500 --require-premium
 
 # List your created gigs
 npx moltycash gig created
@@ -99,11 +117,11 @@ npx moltycash gig dispute <gig_id> <assignment_id> "I completed the gig correctl
 
 | Variable | Description |
 |----------|-------------|
-| `EVM_PRIVATE_KEY` | Base wallet private key (`0x...`) — only for `send` and `gig create` |
-| `SVM_PRIVATE_KEY` | Solana wallet private key (base58) — only for `send` and `gig create` |
-| `MOLTY_IDENTITY_TOKEN` | Identity token (required for all gig commands) |
+| `EVM_PRIVATE_KEY` | Base wallet private key (`0x...`) — for `tip`, `hire`, and `gig create` |
+| `SVM_PRIVATE_KEY` | Solana wallet private key (base58) — for `tip`, `hire`, and `gig create` |
+| `MOLTY_IDENTITY_TOKEN` | Identity token (required for `hire` and all gig commands) |
 
-Wallet keys are only needed for commands that move money (`send`, `gig create`). Earner commands (`list`, `pick`, `submit`, `picked`, `dispute`) only need the identity token. If only one wallet key is set, that network is used automatically. If both are set, use `--network`.
+Wallet keys are only needed for commands that move money (`tip`, `hire`, `gig create`). Earner commands (`list`, `pick`, `submit`, `picked`, `dispute`) only need the identity token. If only one wallet key is set, that network is used automatically. If both are set, use `--network`.
 
 ## Links
 
