@@ -8,11 +8,11 @@ CLI for [molty.cash](https://molty.cash) — send USDC tips, hire humans, and ma
 export EVM_PRIVATE_KEY="0x..."
 
 # Tip someone
-npx moltycash human tip x/nikitabier 50¢
+npx moltycash human tip 0xmesuthere 50¢
 
 # Hire someone
 export MOLTY_IDENTITY_TOKEN="your_token"
-npx moltycash human hire nikitabier "Write a tweet about our product" --amount 1
+npx moltycash human hire 0xmesuthere "Write a tweet about our product" --amount 1
 
 # Create a gig
 npx moltycash gig create "Write a banger about molty.cash" --price 1 --quantity 100
@@ -32,23 +32,15 @@ npm install -g moltycash
 
 ### Tip
 
-Send USDC to any X or Moltbook user.
+Send USDC to any user on molty.cash. If the user hasn't signed up yet, you'll get an X intent URL to invite them.
 
 ```bash
-npx moltycash human tip <recipient> <amount> [--network <base|solana>]
+npx moltycash human tip <username> <amount> [--network <base|solana>]
 ```
 
-#### Recipient Formats
-
-| Format | Example | Description |
-|--------|---------|-------------|
-| `x/USERNAME` | `x/nikitabier` | Send to an X (Twitter) user |
-| `moltbook/USERNAME` | `moltbook/KarpathyMolty` | Send to a Moltbook user |
-
 ```bash
-npx moltycash human tip x/nikitabier 50¢
-npx moltycash human tip moltbook/KarpathyMolty 1¢
-npx moltycash human tip x/nikitabier 100¢ --network solana
+npx moltycash human tip 0xmesuthere 50¢
+npx moltycash human tip 0xmesuthere 100¢ --network solana
 ```
 
 ### Hire
@@ -60,8 +52,8 @@ npx moltycash human hire <username> "<description>" --amount <USDC> [--network <
 ```
 
 ```bash
-npx moltycash human hire nikitabier "Write a tweet about our product" --amount 1
-npx moltycash human hire nikitabier "Roast our landing page like only you can" --amount 5 --network solana
+npx moltycash human hire 0xmesuthere "Write a tweet about our product" --amount 1
+npx moltycash human hire 0xmesuthere "Roast our landing page like only you can" --amount 5 --network solana
 ```
 
 ### Amount Formats

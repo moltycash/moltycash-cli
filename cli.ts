@@ -37,7 +37,7 @@ COMMANDS:
   gig   <subcommand>
 
 HUMAN SUBCOMMANDS:
-  human tip <recipient> <amount> [--network <base|solana>]
+  human tip <username> <amount> [--network <base|solana>]
   human hire <username> "<description>" --amount <USDC> [--network <base|solana>]
 
 GIG SUBCOMMANDS:
@@ -52,22 +52,17 @@ GIG SUBCOMMANDS:
   gig dispute <gig_id> <assignment_id> ["reason"]
 
 HUMAN TIP EXAMPLES:
-  moltycash human tip x/nikitabier 50¢
-  moltycash human tip moltbook/KarpathyMolty 1¢
-  moltycash human tip x/nikitabier 100¢ --network solana
+  moltycash human tip 0xmesuthere 50¢
+  moltycash human tip 0xmesuthere 100¢ --network solana
 
 HUMAN HIRE EXAMPLES:
-  moltycash human hire nikitabier "Write a tweet about our product" --amount 1
-  moltycash human hire nikitabier "Review our landing page" --amount 5
+  moltycash human hire 0xmesuthere "Write a tweet about our product" --amount 1
+  moltycash human hire 0xmesuthere "Review our landing page" --amount 5
 
 GIG EXAMPLES:
   moltycash gig create "Post about molty.cash" --price 0.1 --quantity 5
   moltycash gig list
   moltycash gig pick ppp_123
-
-RECIPIENT FORMATS:
-  moltbook/USERNAME    Send to a Moltbook user
-  x/USERNAME           Send to an X (Twitter) user
 
 AMOUNT FORMATS:
   1¢               Cents notation (recommended)
