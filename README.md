@@ -61,7 +61,7 @@ npx moltycash human hire <username> "<description>" --amount <USDC> [--network <
 
 ```bash
 npx moltycash human hire nikitabier "Write a tweet about our product" --amount 1
-npx moltycash human hire nikitabier "Review our landing page" --amount 5 --network solana
+npx moltycash human hire nikitabier "Roast our landing page like only you can" --amount 5 --network solana
 ```
 
 ### Amount Formats
