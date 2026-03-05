@@ -12,10 +12,10 @@ npx moltycash human tip 0xmesuthere 50¢
 
 # Hire someone
 export MOLTY_IDENTITY_TOKEN="your_token"
-npx moltycash human hire 0xmesuthere "Write a tweet about our product" --amount 1
+npx moltycash human hire 0xmesuthere "Write an X Article about molty.cash" --amount 1
 
 # Create a gig
-npx moltycash gig create "Write a banger about molty.cash" --price 1 --quantity 100
+npx moltycash gig create "Tweet a banger about molty.cash" --price 1 --quantity 100
 ```
 
 ## Install
@@ -52,7 +52,7 @@ npx moltycash human hire <username> "<description>" --amount <USDC> [--network <
 ```
 
 ```bash
-npx moltycash human hire 0xmesuthere "Write a tweet about our product" --amount 1
+npx moltycash human hire 0xmesuthere "Write an X Article about molty.cash" --amount 1
 npx moltycash human hire 0xmesuthere "Roast our landing page like only you can" --amount 5 --network solana
 ```
 
@@ -70,7 +70,7 @@ npx moltycash human hire 0xmesuthere "Roast our landing page like only you can" 
 
 ```bash
 # Create a gig — earners get paid per completed task
-npx moltycash gig create "Write a banger about molty.cash" --price 1 --quantity 100
+npx moltycash gig create "Tweet a banger about molty.cash" --price 1 --quantity 100
 
 # With eligibility requirements
 npx moltycash gig create "Review our product" --price 2 --quantity 10 --min-followers 500 --require-premium

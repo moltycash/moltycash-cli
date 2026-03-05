@@ -239,7 +239,7 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
   if (args._.length < 3 || !args.amount) {
     console.error('Usage: moltycash human hire <username> "<description>" --amount <USDC> [--network <base|solana>]');
     console.error("\nExamples:");
-    console.error('  moltycash human hire 0xmesuthere "Write a tweet about our product" --amount 1');
+    console.error('  moltycash human hire 0xmesuthere "Write an X Article about molty.cash" --amount 1');
     console.error('  moltycash human hire 0xmesuthere "Review our landing page" --amount 5 --network solana');
     process.exit(1);
   }
@@ -371,7 +371,7 @@ if (!subcommand) {
   console.error('  hire <username> "<description>" --amount <USDC>  Hire a user for a task');
   console.error("\nExamples:");
   console.error("  moltycash human tip 0xmesuthere 50¢");
-  console.error('  moltycash human hire 0xmesuthere "Write a tweet" --amount 1');
+  console.error('  moltycash human hire 0xmesuthere "Write an X Article about molty.cash" --amount 1');
   process.exit(1);
 }
 

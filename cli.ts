@@ -56,7 +56,7 @@ HUMAN TIP EXAMPLES:
   moltycash human tip 0xmesuthere 100¢ --network solana
 
 HUMAN HIRE EXAMPLES:
-  moltycash human hire 0xmesuthere "Write a tweet about our product" --amount 1
+  moltycash human hire 0xmesuthere "Write an X Article about molty.cash" --amount 1
   moltycash human hire 0xmesuthere "Review our landing page" --amount 5
 
 GIG EXAMPLES:
