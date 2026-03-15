@@ -198,7 +198,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   console.log("\ud83d\udcb3 Phase 1: Requesting payment requirements...");
   const phase1Result = await a2aCall(
     "gig.create",
-    { amount, per_post_price: perPostPrice, description, ...eligibilityParams },
+    { price: perPostPrice, quantity: totalSlots, description, ...eligibilityParams },
     { "X-A2A-Extensions": X402_EXTENSION_URI },
   );
 
@@ -219,8 +219,8 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   const phase2Result = await a2aCall(
     "gig.create",
     {
-      amount,
-      per_post_price: perPostPrice,
+      price: perPostPrice,
+      quantity: totalSlots,
       description,
       ...eligibilityParams,
       taskId: phase1Result.id,
