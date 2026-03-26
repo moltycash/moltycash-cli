@@ -466,6 +466,10 @@ async function handlePicked(): Promise<void> {
     console.log(`  ${icon} ${a.assignment_id} [${a.status}]`);
     console.log(`     Gig: ${a.gig_id} \u2014 ${a.description}`);
     console.log(`     ${a.per_post_price} USDC`);
+    if (a.payment_releases_at) console.log(`     Payment releases: ${a.payment_releases_at}`);
+    if (a.approved_at) console.log(`     Approved: ${a.approved_at}`);
+    if (a.submitted_at) console.log(`     Submitted: ${a.submitted_at}`);
+    if (a.assignment_deadline) console.log(`     Deadline: ${a.assignment_deadline}`);
     if (a.message) console.log(`     ${a.message}`);
     console.log();
   }
