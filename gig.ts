@@ -1,37 +1,21 @@
-import "dotenv/config";
 import minimist from "minimist";
 import axios from "axios";
-import { Hex } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { x402Client } from "@x402/core/client";
-import { registerExactEvmScheme } from "@x402/evm/exact/client";
-import { registerExactSvmScheme } from "@x402/svm/exact/client";
-import { createKeyPairSignerFromBytes } from "@solana/kit";
-import bs58 from "bs58";
+import { owsPayRequest, ensureOws } from "./ows.js";
+import { loadIdentityToken, assertDomainAllowed, assertSpendAllowed, recordSpend } from "./wallet.js";
 
-const privateKey = process.env.EVM_PRIVATE_KEY as Hex;
-const svmPrivateKey = process.env.SVM_PRIVATE_KEY as string;
-const baseURL = process.env.RESOURCE_SERVER_URL || "https://api.molty.cash";
-const identityToken = process.env.MOLTY_IDENTITY_TOKEN as string | undefined;
+const baseURL = "https://api.molty.cash";
+assertDomainAllowed(baseURL);
 
-const X402_EXTENSION_URI = "https://github.com/google-a2a/a2a-x402/v0.1";
+const identityToken = loadIdentityToken();
 
 let rpcIdCounter = 1;
 
-/**
- * Parse amount from various formats:
- * - "50¢" -> 0.50
- * - "$0.5" or "$0.50" -> 0.50
- * - "0.5" -> 0.50
- */
 function parseAmount(amountStr: string): number {
   const trimmed = amountStr.trim();
 
-  if (trimmed.endsWith("¢")) {
+  if (trimmed.endsWith("\u00a2")) {
     const cents = parseFloat(trimmed.slice(0, -1));
-    if (isNaN(cents)) {
-      throw new Error(`Invalid cents amount: ${amountStr}`);
-    }
+    if (isNaN(cents)) throw new Error(`Invalid cents amount: ${amountStr}`);
     return cents / 100;
   }
 
@@ -41,35 +25,29 @@ function parseAmount(amountStr: string): number {
       const dollars = parseInt(dollarPart, 10);
       const cents = dollars * 100;
       throw new Error(
-        `Dollar amounts like $${dollars} can be interpreted as shell variables. Please use ${cents}¢ instead.`,
+        `Dollar amounts like $${dollars} can be interpreted as shell variables. Please use ${cents}\u00a2 instead.`,
       );
     }
     const dollars = parseFloat(dollarPart);
-    if (isNaN(dollars)) {
-      throw new Error(`Invalid dollar amount: ${amountStr}`);
-    }
+    if (isNaN(dollars)) throw new Error(`Invalid dollar amount: ${amountStr}`);
     return dollars;
   }
 
   const amount = parseFloat(trimmed);
-  if (isNaN(amount)) {
-    throw new Error(`Invalid amount: ${amountStr}`);
-  }
+  if (isNaN(amount)) throw new Error(`Invalid amount: ${amountStr}`);
   return amount;
 }
 
 /**
- * Send A2A JSON-RPC 2.0 request
+ * Send A2A JSON-RPC 2.0 request (non-payment commands)
  */
 async function a2aCall(
   method: string,
   params: Record<string, unknown>,
-  extraHeaders?: Record<string, string>,
 ): Promise<any> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(identityToken && { "X-Molty-Identity-Token": identityToken }),
-    ...extraHeaders,
   };
 
   const response = await axios.post(
@@ -96,13 +74,14 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   const perGigUsdAmount = args.price;
   const quantity = args.quantity || 1;
   const description = args._.slice(1).join(" ").trim();
+  const wallet = args.wallet;
   const minFollowers = args["min-followers"] ? parseInt(String(args["min-followers"]), 10) : undefined;
   const requirePremium = !!args["require-premium"];
   const minAccountAge = args["min-account-age"] ? parseInt(String(args["min-account-age"]), 10) : undefined;
 
-  if (!perGigUsdAmount || !description) {
-    console.error('Usage: moltycash gig create "<description>" --price <USDC> [--quantity <n>] [--network <base|solana>] [--min-followers <n>] [--require-premium] [--min-account-age <days>]');
-    console.error('\nExample: moltycash gig create "Take a photo of your local coffee shop" --price 0.1 --quantity 10 --network base');
+  if (!perGigUsdAmount || !description || !wallet) {
+    console.error('Usage: moltycash gig create "<description>" --price <USDC> --wallet <name> [--quantity <n>]');
+    console.error('\nExample: moltycash gig create "Take a photo of your local coffee shop" --price 0.1 --quantity 10 --wallet agent-treasury');
     process.exit(1);
   }
 
@@ -124,151 +103,84 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
     process.exit(1);
   }
 
-  // Setup x402 signer
-  const hasEvmKey = !!privateKey;
-  const hasSvmKey = !!svmPrivateKey;
-  let useSolana: boolean;
-
-  if (args.network) {
-    if (!["base", "solana"].includes(args.network.toLowerCase())) {
-      console.error("Network must be either 'base' or 'solana'");
-      process.exit(1);
-    }
-    useSolana = args.network.toLowerCase() === "solana";
-    if (useSolana && !hasSvmKey) {
-      console.error("\u274c Missing SVM_PRIVATE_KEY environment variable (needed for --network solana)");
-      process.exit(1);
-    }
-    if (!useSolana && !hasEvmKey) {
-      console.error("\u274c Missing EVM_PRIVATE_KEY environment variable (needed for --network base)");
-      process.exit(1);
-    }
-  } else {
-    if (hasEvmKey && hasSvmKey) {
-      console.error("\u274c Both EVM_PRIVATE_KEY and SVM_PRIVATE_KEY are set");
-      console.error("   Please specify which network to use with --network <base|solana>");
-      process.exit(1);
-    } else if (hasSvmKey) {
-      useSolana = true;
-      console.log("\u2139\ufe0f  Auto-detected network: Solana");
-    } else if (hasEvmKey) {
-      useSolana = false;
-      console.log("\u2139\ufe0f  Auto-detected network: Base");
-    } else {
-      console.error("\u274c No private keys found");
-      console.error("   Set EVM_PRIVATE_KEY (for Base) or SVM_PRIVATE_KEY (for Solana)");
-      process.exit(1);
-    }
-  }
-
-  const client = new x402Client();
-
-  if (useSolana!) {
-    console.log("\n\ud83d\udd27 Creating Solana signer...");
-    const privateKeyBytes = bs58.decode(svmPrivateKey);
-    const solanaSigner = await createKeyPairSignerFromBytes(privateKeyBytes);
-    console.log(`\u2705 Solana signer created: ${solanaSigner.address}`);
-    registerExactSvmScheme(client, { signer: solanaSigner });
-  } else {
-    console.log("\n\ud83d\udd27 Creating Base signer...");
-    if (!privateKey.startsWith("0x")) {
-      console.error("\u274c EVM_PRIVATE_KEY must start with '0x'");
-      process.exit(1);
-    }
-    const account = privateKeyToAccount(privateKey);
-    console.log(`\u2705 Base signer created: ${account.address}`);
-    registerExactEvmScheme(client, { signer: account });
-  }
+  assertSpendAllowed(amount);
+  ensureOws();
 
   const totalSlots = Math.floor(amount / perPostPrice);
-  const eligibilityParams: Record<string, unknown> = {};
-  if (minFollowers !== undefined) eligibilityParams.min_followers = minFollowers;
-  if (requirePremium) eligibilityParams.require_premium = true;
-  if (minAccountAge !== undefined) eligibilityParams.min_account_age_days = minAccountAge;
+  const gigParams: Record<string, unknown> = {
+    price: perPostPrice,
+    quantity: totalSlots,
+    description,
+    ...(identityToken && { identity_token: identityToken }),
+  };
+  if (minFollowers !== undefined) gigParams.min_followers = minFollowers;
+  if (requirePremium) gigParams.require_premium = true;
+  if (minAccountAge !== undefined) gigParams.min_account_age_days = minAccountAge;
 
-  console.log(`\n\ud83c\udfaf Creating gig: ${totalSlots} slot(s) at ${perPostPrice} USDC each (total: ${amount} USDC)`);
-  console.log(`   Network: ${useSolana! ? "Solana" : "Base"}`);
+  console.log(`\n\u{1F3AF} Creating gig: ${totalSlots} slot(s) at ${perPostPrice} USDC each (total: ${amount} USDC)`);
+  console.log(`   Wallet: ${wallet}`);
   console.log(`   Description: ${description}`);
   if (minFollowers !== undefined) console.log(`   Min followers: ${minFollowers}`);
   if (requirePremium) console.log(`   Require premium: yes`);
   if (minAccountAge !== undefined) console.log(`   Min account age: ${minAccountAge} days`);
   console.log();
 
-  // Phase 1: Get payment requirements
-  console.log("\ud83d\udcb3 Phase 1: Requesting payment requirements...");
-  const phase1Result = await a2aCall(
-    "gig.create",
-    { price: perPostPrice, quantity: totalSlots, description, ...eligibilityParams },
-    { "X-A2A-Extensions": X402_EXTENSION_URI },
-  );
+  const body = {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "gig.create",
+    params: gigParams,
+  };
 
-  if (!phase1Result.id) {
-    throw new Error("Missing task ID in response");
-  }
+  const output = owsPayRequest(`${baseURL}/a2a`, body, String(wallet));
 
-  const paymentRequired = phase1Result.status?.message?.metadata?.["x402.payment.required"];
-  if (!paymentRequired) {
-    throw new Error("No payment requirements found in response");
-  }
-
-  // Phase 2: Sign and submit payment
-  console.log("\ud83d\udd10 Phase 2: Signing payment...");
-  const signedPayment = await client.createPaymentPayload(paymentRequired);
-
-  console.log("\ud83d\udce4 Submitting signed payment...\n");
-  const phase2Result = await a2aCall(
-    "gig.create",
-    {
-      price: perPostPrice,
-      quantity: totalSlots,
-      description,
-      ...eligibilityParams,
-      taskId: phase1Result.id,
-      payment: signedPayment,
-    },
-    { "X-A2A-Extensions": X402_EXTENSION_URI },
-  );
-
-  // Extract gig details from completed task artifacts
-  const artifacts = phase2Result.artifacts || [];
-  for (const artifact of artifacts) {
-    if (artifact.data) {
-      try {
-        const data = JSON.parse(Buffer.from(artifact.data, "base64").toString());
-        console.log(`\u2705 Gig created!`);
-        console.log(`   ID: ${data.gig_id}`);
-        console.log(`   URL: https://molty.cash/gig/${data.gig_id}`);
-        console.log(`   Slots: ${data.total_slots}`);
-        console.log(`   Per post: ${data.per_post_price} USDC`);
-        console.log(`   Description: ${data.description}`);
-        console.log(`   Deadline: ${data.deadline}`);
-        if (data.transaction_hash) {
-          console.log(`   TXN: ${data.transaction_hash}`);
+  const lines = output.split("\n");
+  const jsonLine = lines.find((l) => l.startsWith("{"));
+  if (jsonLine) {
+    const parsed = JSON.parse(jsonLine);
+    // Check for failed task state
+    if (parsed.result?.status?.state === "failed") {
+      const errorParts = parsed.result.status?.message?.parts || [];
+      const errorMsg = errorParts.filter((p: any) => p.kind === "text").map((p: any) => p.text).join("\n");
+      throw new Error(errorMsg || "Gig creation failed");
+    }
+    if (parsed.result) {
+      const r = parsed.result;
+      // Try direct fields first, then check artifacts, then metadata
+      let gig: any = null;
+      if (r.gig_id) {
+        gig = r;
+      } else if (r.artifacts) {
+        for (const a of r.artifacts) {
+          if (a.data) {
+            try { gig = JSON.parse(Buffer.from(a.data, "base64").toString()); break; } catch {}
+          }
         }
-        return;
-      } catch {
-        // ignore parse errors
       }
+      if (!gig) {
+        gig = r.status?.message?.metadata || {};
+      }
+
+      console.log(`\u2705 Gig created!`);
+      if (gig.gig_id) {
+        console.log(`   ID: ${gig.gig_id}`);
+        console.log(`   URL: https://molty.cash/gig/${gig.gig_id}`);
+      }
+      if (gig.total_slots) console.log(`   Slots: ${gig.total_slots}`);
+      if (gig.per_post_price) console.log(`   Per post: ${gig.per_post_price} USDC`);
+      recordSpend(amount);
+      return;
+    }
+    if (parsed.error) {
+      throw new Error(parsed.error.message || "Gig creation failed");
     }
   }
 
-  // Check task state for failures
-  const taskState = phase2Result.status?.state;
-  const msg = phase2Result.status?.message?.parts
-    ?.filter((p: any) => p.kind === "text")
-    .map((p: any) => p.text)
-    .join("\n");
-
-  if (taskState === "failed" || taskState === "canceled") {
-    console.error(`\u274c ${msg || "Gig creation failed"}`);
-    process.exit(1);
-  }
-
-  console.log(`\u2705 ${msg || "Gig created"}`);
+  console.log(output);
 }
 
 async function handleCreated(): Promise<void> {
-  console.log("\n\ud83d\udccb Fetching your created gigs...\n");
+  console.log("\n\u{1F4CB} Fetching your created gigs...\n");
 
   const result = await a2aCall("gig.my_created", {});
 
@@ -280,7 +192,7 @@ async function handleCreated(): Promise<void> {
 
   console.log(`Found ${gigs.length} gig(s):\n`);
   for (const b of gigs) {
-    const statusIcon = b.status === "open" ? "\ud83d\udfe2" : b.status === "completed" ? "\u2705" : "\u23f0";
+    const statusIcon = b.status === "open" ? "\u{1F7E2}" : b.status === "completed" ? "\u2705" : "\u23F0";
     console.log(`  ${statusIcon} ${b.id} [${b.status}]`);
     console.log(`     ${b.description}`);
     console.log(`     ${b.amount} USDC (${b.per_post_price}/post) \u2014 ${b.completed_slots}/${b.total_slots} completed`);
@@ -297,11 +209,11 @@ async function handleGet(args: minimist.ParsedArgs): Promise<void> {
   }
 
   const gigId = args._[1];
-  console.log(`\n\ud83d\udccb Fetching gig ${gigId}...\n`);
+  console.log(`\n\u{1F4CB} Fetching gig ${gigId}...\n`);
 
   const result = await a2aCall("gig.get", { gig_id: gigId });
 
-  const statusIcon = result.status === "open" ? "\ud83d\udfe2" : result.status === "completed" ? "\u2705" : "\u23f0";
+  const statusIcon = result.status === "open" ? "\u{1F7E2}" : result.status === "completed" ? "\u2705" : "\u23F0";
   console.log(`${statusIcon} ${result.id} [${result.status}]`);
   console.log(`   Description: ${result.description}`);
   console.log(`   Amount: ${result.amount} USDC (${result.per_post_price} per post)`);
@@ -319,12 +231,12 @@ async function handleGet(args: minimist.ParsedArgs): Promise<void> {
     console.log(`\n   Assignments (${assignments.length}):`);
     for (const a of assignments) {
       const icon = a.status === "completed" ? "\u2705"
-        : a.status === "approved" ? "\u23f3"
-        : a.status === "pending_review" ? "\ud83d\udd0d"
-        : a.status === "assigned" ? "\ud83d\udd12"
+        : a.status === "approved" ? "\u23F3"
+        : a.status === "pending_review" ? "\u{1F50D}"
+        : a.status === "assigned" ? "\u{1F512}"
         : a.status === "rejected" ? "\u274c"
-        : a.status === "final_rejected" ? "\u26d4"
-        : a.status === "disputed" ? "\u26a0\ufe0f"
+        : a.status === "final_rejected" ? "\u26D4"
+        : a.status === "disputed" ? "\u26A0\uFE0F"
         : "\u2022";
       console.log(`     ${icon} @${a.earner} \u2014 ${a.status} \u2014 ${a.amount} USDC`);
       if (a.proof) {
@@ -361,7 +273,7 @@ async function handleReview(args: minimist.ParsedArgs): Promise<void> {
     process.exit(1);
   }
 
-  console.log(`\n\u2696\ufe0f  Reviewing assignment ${assignmentId} on gig ${gigId}...`);
+  console.log(`\n\u2696\uFE0F  Reviewing assignment ${assignmentId} on gig ${gigId}...`);
   console.log(`   Action: ${action}`);
   if (reason) console.log(`   Reason: ${reason}`);
   console.log();
@@ -384,7 +296,7 @@ async function handleReview(args: minimist.ParsedArgs): Promise<void> {
 // ───── Earner subcommands ─────
 
 async function handleList(): Promise<void> {
-  console.log("\n\ud83d\udccb Fetching available gigs...\n");
+  console.log("\n\u{1F4CB} Fetching available gigs...\n");
   const result = await a2aCall("gig.list", {});
 
   if (!result.eligible) {
@@ -400,7 +312,7 @@ async function handleList(): Promise<void> {
 
   console.log(`Found ${gigs.length} gig(s):\n`);
   for (const g of gigs) {
-    console.log(`  \ud83d\udfe2 ${g.id}`);
+    console.log(`  \u{1F7E2} ${g.id}`);
     console.log(`     ${g.description}`);
     console.log(`     ${g.per_post_price} USDC/post \u2014 ${g.remaining_slots} slot(s) left`);
     console.log(`     Deadline: ${g.deadline}`);
@@ -416,7 +328,7 @@ async function handlePick(args: minimist.ParsedArgs): Promise<void> {
   }
 
   const gigId = args._[1];
-  console.log(`\n\ud83c\udfaf Picking gig ${gigId}...\n`);
+  console.log(`\n\u{1F3AF} Picking gig ${gigId}...\n`);
   const result = await a2aCall("gig.pick", { gig_id: gigId });
 
   console.log(`\u2705 Slot reserved!`);
@@ -434,7 +346,7 @@ async function handleSubmit(args: minimist.ParsedArgs): Promise<void> {
 
   const gigId = args._[1];
   const proof = args._[2];
-  console.log(`\n\ud83d\udce4 Submitting proof for gig ${gigId}...\n`);
+  console.log(`\n\u{1F4E4} Submitting proof for gig ${gigId}...\n`);
   const result = await a2aCall("gig.submit_proof", { gig_id: gigId, proof });
 
   console.log(`\u2705 Proof submitted!`);
@@ -444,7 +356,7 @@ async function handleSubmit(args: minimist.ParsedArgs): Promise<void> {
 }
 
 async function handlePicked(): Promise<void> {
-  console.log("\n\ud83d\udccb Fetching your picked gigs...\n");
+  console.log("\n\u{1F4CB} Fetching your picked gigs...\n");
   const result = await a2aCall("gig.my_accepted", {});
 
   const assignments = result.assignments || [];
@@ -456,12 +368,12 @@ async function handlePicked(): Promise<void> {
   console.log(`Found ${assignments.length} gig(s):\n`);
   for (const a of assignments) {
     const icon = a.status === "completed" ? "\u2705"
-      : a.status === "approved" ? "\u23f3"
-      : a.status === "pending_review" ? "\ud83d\udd0d"
-      : a.status === "assigned" ? "\ud83d\udd12"
+      : a.status === "approved" ? "\u23F3"
+      : a.status === "pending_review" ? "\u{1F50D}"
+      : a.status === "assigned" ? "\u{1F512}"
       : a.status === "rejected" ? "\u274c"
-      : a.status === "final_rejected" ? "\u26d4"
-      : a.status === "disputed" ? "\u26a0\ufe0f"
+      : a.status === "final_rejected" ? "\u26D4"
+      : a.status === "disputed" ? "\u26A0\uFE0F"
       : "\u2022";
     console.log(`  ${icon} ${a.assignment_id} [${a.status}]`);
     console.log(`     Gig: ${a.gig_id} \u2014 ${a.description}`);
@@ -485,7 +397,7 @@ async function handleDisputeEarner(args: minimist.ParsedArgs): Promise<void> {
   const assignmentId = args._[2];
   const reason = args._.slice(3).join(" ");
 
-  console.log(`\n\u2696\ufe0f  Disputing assignment ${assignmentId} on gig ${gigId}...\n`);
+  console.log(`\n\u2696\uFE0F  Disputing assignment ${assignmentId} on gig ${gigId}...\n`);
   const result = await a2aCall("gig.earner_dispute", { gig_id: gigId, assignment_id: assignmentId, reason });
 
   console.log(`\u2705 Dispute resolved!`);
@@ -498,17 +410,19 @@ async function handleDisputeEarner(args: minimist.ParsedArgs): Promise<void> {
 
 const args = minimist(process.argv.slice(2));
 
-if (!identityToken) {
-  console.error("\u274c Missing MOLTY_IDENTITY_TOKEN environment variable");
-  console.error("   All gig commands require an identity token.");
-  console.error("   Get yours at: https://molty.cash (Profile > Identity Token)");
-  process.exit(1);
-}
-
 const subcommand = args._[0];
 
 if (!subcommand) {
   console.error("Usage: moltycash gig <create|created|get|review|list|pick|submit|picked|dispute>");
+  process.exit(1);
+}
+
+// Identity token required for non-create commands (create uses OWS wallet directly)
+if (subcommand !== "create" && !identityToken) {
+  console.error("\u274c No identity token found.");
+  console.error("   Gig commands require an identity token.");
+  console.error("   Get yours at: https://molty.cash (Settings > Identity Token)");
+  console.error("   Then run: moltycash wallet import-token <your_token>");
   process.exit(1);
 }
 

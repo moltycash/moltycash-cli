@@ -3,6 +3,7 @@
 /**
  * molty.cash CLI
  * Send USDC payments, hire humans, and manage gigs via molty.cash API
+ * Powered by Open Wallet Standard (OWS) for secure key management
  */
 
 import { spawn } from "child_process";
@@ -26,22 +27,31 @@ function showVersion() {
 
 function showHelp() {
   console.log(`
-╔════════════════════════════════════════════════════════════╗
-║                       molty.cash CLI                       ║
-╚════════════════════════════════════════════════════════════╝
+\u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557
+\u2551                       molty.cash CLI                       \u2551
+\u255A\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255D
 
 USDC payments, hiring, and gigs via molty.cash API
+Powered by Open Wallet Standard (OWS)
 
 COMMANDS:
-  human <tip|hire>
-  gig   <subcommand>
+  wallet <subcommand>
+  human  <tip|hire>
+  gig    <subcommand>
+
+WALLET SUBCOMMANDS:
+  wallet create <name>                  Create a new OWS wallet
+  wallet list                           List all wallets
+  wallet show <name>                    Show wallet details
+  wallet balance <name>                 Check USDC balance on Base
+  wallet policy [--max-per-tx] [--daily-limit]  View or set spend limits
 
 HUMAN SUBCOMMANDS:
-  human tip <username> <amount> [--network <base|solana>]
-  human hire <username> "<description>" --amount <USDC> [--network <base|solana>]
+  human tip <username> <amount> --wallet <name>
+  human hire <username> "<description>" --amount <USDC> --wallet <name>
 
 GIG SUBCOMMANDS:
-  gig create "<description>" --price <USDC> [--quantity <n>] [--network <base|solana>] [--min-followers <n>] [--require-premium] [--min-account-age <days>]
+  gig create "<description>" --price <USDC> --wallet <name> [--quantity <n>]
   gig created                          List gigs you created
   gig get <gig_id>                     Get gig details
   gig review <gig_id> <assignment_id> <approve|reject> ["reason"]
@@ -51,36 +61,31 @@ GIG SUBCOMMANDS:
   gig picked                           List gigs you've picked
   gig dispute <gig_id> <assignment_id> ["reason"]
 
-HUMAN TIP EXAMPLES:
-  moltycash human tip 0xmesuthere 50¢
-  moltycash human tip 0xmesuthere 100¢ --network solana
-
-HUMAN HIRE EXAMPLES:
-  moltycash human hire 0xmesuthere "Write an X Article about molty.cash" --amount 1
-  moltycash human hire 0xmesuthere "Review our landing page" --amount 5
-
-GIG EXAMPLES:
-  moltycash gig create "Post about molty.cash" --price 0.1 --quantity 5
+EXAMPLES:
+  moltycash wallet create agent-treasury
+  moltycash wallet balance agent-treasury
+  moltycash human tip 0xmesuthere 50\u00a2 --wallet agent-treasury
+  moltycash human hire 0xmesuthere "Write an X Article" --amount 1 --wallet agent-treasury
+  moltycash gig create "Post about molty.cash" --price 0.1 --quantity 5 --wallet agent-treasury
   moltycash gig list
   moltycash gig pick ppp_123
 
 AMOUNT FORMATS:
-  1¢               Cents notation (recommended)
+  1\u00a2               Cents notation (recommended)
   $0.5             Dollar notation (use quotes)
   0.5              Decimal USDC
 
 OPTIONS:
   --help, -h       Show this help message
   --version, -v    Show version number
-  --network        Specify network (base or solana)
+  --wallet <name>  OWS wallet name (required for payment commands)
 
 ENVIRONMENT VARIABLES:
-  SVM_PRIVATE_KEY         Your Solana private key
-  EVM_PRIVATE_KEY         Your Base/EVM private key
-  MOLTY_IDENTITY_TOKEN    Identity token (required for gig and hire commands)
+  OWS_PASSPHRASE          OWS wallet passphrase (if set during wallet create)
+  MOLTY_IDENTITY_TOKEN    Identity token (alternative to wallet import-token)
 
-  If only one key is set, that network is used automatically.
-  If both are set, you must specify --network.
+PREREQUISITES:
+  OWS CLI must be installed: curl -fsSL https://docs.openwallet.sh/install.sh | bash
 
 DOCUMENTATION:
   https://molty.cash
@@ -121,14 +126,17 @@ function main() {
 
   const command = args[0];
 
-  if (command === "human") {
+  if (command === "wallet") {
+    const commandArgs = args.slice(1);
+    runCommand("wallet.js", commandArgs);
+  } else if (command === "human") {
     const commandArgs = args.slice(1);
     runCommand("human.js", commandArgs);
   } else if (command === "gig") {
     const commandArgs = args.slice(1);
     runCommand("gig.js", commandArgs);
   } else {
-    console.error(`\n❌ Unknown command: ${command}\n`);
+    console.error(`\n\u274c Unknown command: ${command}\n`);
     console.error(`Run 'moltycash --help' to see available commands.\n`);
     process.exit(1);
   }

@@ -1,21 +1,36 @@
 # moltycash
 
-CLI for [molty.cash](https://molty.cash) — send USDC tips, hire humans, and manage gigs on Base and Solana via [x402](https://x402.org).
+CLI for [molty.cash](https://molty.cash) — send USDC tips, hire humans, and manage gigs on Base via [x402](https://x402.org).
+
+Powered by [Open Wallet Standard (OWS)](https://openwallet.sh) — keys are stored in an encrypted local vault, never exposed as environment variables or plaintext files.
+
+## Prerequisites
+
+[OWS CLI](https://openwallet.sh) is required for wallet management and payments.
 
 ## Quick Start
 
 ```bash
-export EVM_PRIVATE_KEY="0x..."
+# Create an encrypted wallet
+moltycash wallet create agent-treasury
+
+# Check balance
+moltycash wallet balance agent-treasury
 
 # Tip someone
-npx moltycash human tip 0xmesuthere 50¢
+moltycash human tip 0xmesuthere 50¢ --wallet agent-treasury
 
 # Hire someone
-export MOLTY_IDENTITY_TOKEN="your_token"
-npx moltycash human hire 0xmesuthere "Write an X Article about molty.cash" --amount 1
+moltycash human hire 0xmesuthere "Write an X Article about molty.cash" \
+  --amount 1 \
+  --wallet agent-treasury
 
 # Create a gig
-npx moltycash gig create "Tweet a banger about molty.cash" --price 1 --quantity 100
+export MOLTY_IDENTITY_TOKEN="your_token"
+moltycash gig create "Post about molty.cash" \
+  --price 10¢ \
+  --quantity 3 \
+  --wallet agent-treasury
 ```
 
 ## Install
@@ -28,6 +43,30 @@ npx moltycash --help
 npm install -g moltycash
 ```
 
+## Wallet Commands
+
+Wallets are managed by OWS. Keys are stored in `~/.ows/` encrypted with AES-256-GCM.
+
+```bash
+# Create a new wallet
+moltycash wallet create <name>
+
+# List wallets
+moltycash wallet list
+
+# Show wallet details
+moltycash wallet show <name>
+
+# Check USDC balance on Base
+moltycash wallet balance <name>
+
+# Set spend limits
+moltycash wallet policy --max-per-tx 5 --daily-limit 50
+
+# View current policy
+moltycash wallet policy
+```
+
 ## Human Commands
 
 ### Tip
@@ -35,12 +74,12 @@ npm install -g moltycash
 Send USDC to any user on molty.cash. If the user hasn't signed up yet, you'll get an X intent URL to invite them.
 
 ```bash
-npx moltycash human tip <username> <amount> [--network <base|solana>]
+moltycash human tip <username> <amount> --wallet <name>
 ```
 
 ```bash
-npx moltycash human tip 0xmesuthere 50¢
-npx moltycash human tip 0xmesuthere 100¢ --network solana
+moltycash human tip 0xmesuthere 50¢ --wallet agent-treasury
+moltycash human tip 0xmesuthere 1 --wallet agent-treasury
 ```
 
 ### Hire
@@ -48,12 +87,13 @@ npx moltycash human tip 0xmesuthere 100¢ --network solana
 Hire a specific person to complete a task. Payment is escrowed via x402 and released after proof is submitted and reviewed.
 
 ```bash
-npx moltycash human hire <username> "<description>" --amount <USDC> [--network <base|solana>]
+moltycash human hire <username> "<description>" --amount <USDC> --wallet <name>
 ```
 
 ```bash
-npx moltycash human hire 0xmesuthere "Write an X Article about molty.cash" --amount 1
-npx moltycash human hire 0xmesuthere "Roast our landing page like only you can" --amount 5 --network solana
+moltycash human hire 0xmesuthere "Write an X Article about molty.cash" \
+  --amount 1 \
+  --wallet agent-treasury
 ```
 
 ### Amount Formats
@@ -70,54 +110,71 @@ npx moltycash human hire 0xmesuthere "Roast our landing page like only you can" 
 
 ```bash
 # Create a gig — earners get paid per completed task
-npx moltycash gig create "Tweet a banger about molty.cash" --price 1 --quantity 100
+moltycash gig create "Post about molty.cash" \
+  --price 10¢ \
+  --quantity 10 \
+  --wallet agent-treasury
 
 # With eligibility requirements
-npx moltycash gig create "Review our product" --price 2 --quantity 10 --min-followers 500 --require-premium
+moltycash gig create "Review our product" \
+  --price 2 \
+  --quantity 10 \
+  --wallet agent-treasury \
+  --min-followers 500 \
+  --require-premium \
+  --min-account-age 30
 
 # List your created gigs
-npx moltycash gig created
+moltycash gig created
 
 # View gig details and assignments
-npx moltycash gig get <gig_id>
+moltycash gig get <gig_id>
 
 # Review an assignment (approve or reject)
-npx moltycash gig review <gig_id> <assignment_id> approve
-npx moltycash gig review <gig_id> <assignment_id> reject "Does not match the gig description"
+moltycash gig review <gig_id> <assignment_id> approve
+moltycash gig review <gig_id> <assignment_id> reject "Does not match the gig description"
 ```
 
 ### For Earners
 
 ```bash
 # Browse available gigs
-npx moltycash gig list
+moltycash gig list
 
 # Reserve a slot
-npx moltycash gig pick <gig_id>
+moltycash gig pick <gig_id>
 
 # Submit proof after completing the gig
-npx moltycash gig submit <gig_id> <proof_url>
+moltycash gig submit <gig_id> <proof_url>
 
 # View your picked gigs
-npx moltycash gig picked
+moltycash gig picked
 
 # Dispute a rejected assignment
-npx moltycash gig dispute <gig_id> <assignment_id> "I completed the gig correctly"
+moltycash gig dispute <gig_id> <assignment_id> "I completed the gig correctly"
 ```
 
 ## Environment Variables
 
 | Variable | Description |
 |----------|-------------|
-| `EVM_PRIVATE_KEY` | Base wallet private key (`0x...`) — for `tip`, `hire`, and `gig create` |
-| `SVM_PRIVATE_KEY` | Solana wallet private key (base58) — for `tip`, `hire`, and `gig create` |
-| `MOLTY_IDENTITY_TOKEN` | Identity token (required for `hire` and all gig commands) |
+| `MOLTY_IDENTITY_TOKEN` | Identity token (required for gig commands) |
+| `OWS_PASSPHRASE` | OWS wallet passphrase (if set during wallet create) |
 
-Wallet keys are only needed for commands that move money (`tip`, `hire`, `gig create`). Earner commands (`list`, `pick`, `submit`, `picked`, `dispute`) only need the identity token. If only one wallet key is set, that network is used automatically. If both are set, use `--network`.
+Payment commands (`tip`, `hire`, `gig create`) require `--wallet <name>` pointing to an OWS wallet. Earner commands (`list`, `pick`, `submit`, `picked`, `dispute`) only need the identity token.
+
+## How It Works
+
+moltycash uses the [Open Wallet Standard](https://openwallet.sh) for wallet management and [x402](https://x402.org) for payments:
+
+1. **Wallet** — OWS creates an encrypted multi-chain wallet in `~/.ows/`. Keys never leave the vault.
+2. **Payment** — When you tip, hire, or create a gig, moltycash calls `ows pay request` which handles the x402 payment flow automatically: sends the request, detects HTTP 402, signs the payment, and retries.
+3. **No raw keys** — Unlike traditional crypto CLIs, you never handle private keys directly. OWS manages encryption, signing, and key isolation.
 
 ## Links
 
 - [molty.cash](https://molty.cash)
+- [Open Wallet Standard](https://openwallet.sh)
 - [x402.org](https://x402.org)
 
 ## License
