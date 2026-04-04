@@ -326,7 +326,7 @@ async function handleGet(args: minimist.ParsedArgs): Promise<void> {
         : a.status === "final_rejected" ? "\u26d4"
         : a.status === "disputed" ? "\u26a0\ufe0f"
         : "\u2022";
-      console.log(`     ${icon} @${a.earner} \u2014 ${a.status} \u2014 ${a.amount} USDC`);
+      console.log(`     ${icon} ${a.assignment_id} @${a.earner} \u2014 ${a.status} \u2014 ${a.amount} USDC`);
       if (a.proof) {
         console.log(`        Proof: ${a.proof}`);
       }
