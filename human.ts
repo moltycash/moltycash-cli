@@ -215,10 +215,9 @@ async function handleTip(args: minimist.ParsedArgs): Promise<void> {
     if (artifact.data) {
       try {
         const data = JSON.parse(Buffer.from(artifact.data, "base64").toString());
-        console.log(`✅ ${data.amount || amount} USDC sent to @${username}`);
-        if (data.txn_id) console.log(`🔗 TXN: ${data.txn_id}`);
-        if (data.network) console.log(`💳 Network: ${data.network}`);
-        if (data.receipt) console.log(`📄 Receipt: ${data.receipt}`);
+        console.log(`✅ ${data.amount || amount} USDC sent to @${data.to || username}`);
+        if (data.transaction?.explorer) console.log(`🔗 ${data.transaction.explorer}`);
+        if (data.receipt) console.log(`📄 ${data.receipt}`);
         return;
       } catch {
         // ignore parse errors
@@ -332,10 +331,9 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
     if (artifact.data) {
       try {
         const data = JSON.parse(Buffer.from(artifact.data, "base64").toString());
-        console.log(`✅ @${username} hired!`);
-        if (data.gig_id) console.log(`   Gig: ${data.gig_id}`);
-        if (data.assignment_id) console.log(`   Assignment: ${data.assignment_id}`);
-        console.log(`   Profile: https://molty.cash/${username}`);
+        console.log(`✅ @${data.to || username} hired for ${data.amount || amount} USDC`);
+        if (data.transaction?.explorer) console.log(`🔗 ${data.transaction.explorer}`);
+        if (data.receipt) console.log(`📄 ${data.receipt}`);
         return;
       } catch {
         // ignore
@@ -344,11 +342,10 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
   }
 
   // Fallback: check for direct result fields
-  if (result.gig_id) {
-    console.log(`✅ @${username} hired!`);
-    console.log(`   Gig: ${result.gig_id}`);
-    if (result.assignment_id) console.log(`   Assignment: ${result.assignment_id}`);
-    console.log(`   Profile: https://molty.cash/${username}`);
+  if (result.type === 'hire' || result.gig_id) {
+    console.log(`✅ @${result.to || username} hired for ${result.amount || amount} USDC`);
+    if (result.transaction?.explorer) console.log(`🔗 ${result.transaction.explorer}`);
+    if (result.receipt) console.log(`📄 ${result.receipt}`);
     return;
   }
 

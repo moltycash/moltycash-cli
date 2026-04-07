@@ -236,15 +236,11 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
       try {
         const data = JSON.parse(Buffer.from(artifact.data, "base64").toString());
         console.log(`\u2705 Gig created!`);
-        console.log(`   ID: ${data.gig_id}`);
-        console.log(`   URL: https://molty.cash/gig/${data.gig_id}`);
-        console.log(`   Slots: ${data.total_slots}`);
-        console.log(`   Per post: ${data.per_post_price} USDC`);
-        console.log(`   Description: ${data.description}`);
+        console.log(`   ${data.description}`);
+        console.log(`   ${data.total_slots} slots at ${data.per_post_price} USDC each`);
         console.log(`   Deadline: ${data.deadline}`);
-        if (data.transaction_hash) {
-          console.log(`   TXN: ${data.transaction_hash}`);
-        }
+        if (data.transaction?.explorer) console.log(`🔗 ${data.transaction.explorer}`);
+        if (data.receipt) console.log(`📄 ${data.receipt}`);
         return;
       } catch {
         // ignore parse errors
