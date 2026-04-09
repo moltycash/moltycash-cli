@@ -37,11 +37,11 @@ COMMANDS:
   gig   <subcommand>
 
 HUMAN SUBCOMMANDS:
-  human tip <username> <amount> [--network <base|solana|stellar>]
-  human hire <username> "<description>" --amount <USDC> [--network <base|solana|stellar>]
+  human tip <username> <amount> [--network <base|solana|stellar|tempo>]
+  human hire <username> "<description>" --amount <USDC> [--network <base|solana|stellar|tempo>]
 
 GIG SUBCOMMANDS:
-  gig create "<description>" --price <USDC> [--quantity <n>] [--network <base|solana|stellar>] [--min-followers <n>] [--require-premium] [--min-account-age <days>]
+  gig create "<description>" --price <USDC> [--quantity <n>] [--network <base|solana|stellar|tempo>] [--min-followers <n>] [--require-premium] [--min-account-age <days>]
   gig created                          List gigs you created
   gig get <gig_id>                     Get gig details
   gig review <gig_id> <assignment_id> <approve|reject> ["reason"]
@@ -72,12 +72,13 @@ AMOUNT FORMATS:
 OPTIONS:
   --help, -h       Show this help message
   --version, -v    Show version number
-  --network        Specify network (base, solana, or stellar)
+  --network        Specify network (base, solana, stellar, or tempo)
 
 ENVIRONMENT VARIABLES:
   SVM_PRIVATE_KEY         Your Solana private key
   EVM_PRIVATE_KEY         Your Base/EVM private key
   STELLAR_SECRET_KEY      Your Stellar secret key (S...)
+  TEMPO_PRIVATE_KEY       Your Tempo/EVM private key (0x...)
   MOLTY_IDENTITY_TOKEN    Identity token (required for gig and hire commands)
 
   If only one key is set, that network is used automatically.

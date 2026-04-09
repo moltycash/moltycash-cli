@@ -10,10 +10,12 @@ import { createKeyPairSignerFromBytes } from "@solana/kit";
 import bs58 from "bs58";
 import { Mppx } from "@stellar/mpp/charge/client";
 import { stellar } from "@stellar/mpp/charge/client";
+import { tempo } from "mppx/client";
 
 const privateKey = process.env.EVM_PRIVATE_KEY as Hex;
 const svmPrivateKey = process.env.SVM_PRIVATE_KEY as string;
 const stellarSecretKey = process.env.STELLAR_SECRET_KEY as string;
+const tempoPrivateKey = process.env.TEMPO_PRIVATE_KEY as Hex;
 const baseURL = process.env.RESOURCE_SERVER_URL || "https://api.molty.cash";
 const identityToken = process.env.MOLTY_IDENTITY_TOKEN as string | undefined;
 
@@ -131,12 +133,13 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   const hasEvmKey = !!privateKey;
   const hasSvmKey = !!svmPrivateKey;
   const hasStellarKey = !!stellarSecretKey;
-  const keyCount = [hasEvmKey, hasSvmKey, hasStellarKey].filter(Boolean).length;
-  let network: "base" | "solana" | "stellar";
+  const hasTempoKey = !!tempoPrivateKey;
+  const keyCount = [hasEvmKey, hasSvmKey, hasStellarKey, hasTempoKey].filter(Boolean).length;
+  let network: "base" | "solana" | "stellar" | "tempo";
 
   if (args.network) {
-    if (!["base", "solana", "stellar"].includes(args.network.toLowerCase())) {
-      console.error("Network must be 'base', 'solana', or 'stellar'");
+    if (!["base", "solana", "stellar", "tempo"].includes(args.network.toLowerCase())) {
+      console.error("Network must be 'base', 'solana', 'stellar', or 'tempo'");
       process.exit(1);
     }
     network = args.network.toLowerCase() as typeof network;
@@ -152,11 +155,18 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
       console.error("\u274c Missing STELLAR_SECRET_KEY environment variable (needed for --network stellar)");
       process.exit(1);
     }
+    if (network === "tempo" && !hasTempoKey) {
+      console.error("\u274c Missing TEMPO_PRIVATE_KEY environment variable (needed for --network tempo)");
+      process.exit(1);
+    }
   } else {
     if (keyCount > 1) {
       console.error("\u274c Multiple private keys found");
-      console.error("   Please specify which network to use with --network <base|solana|stellar>");
+      console.error("   Please specify which network to use with --network <base|solana|stellar|tempo>");
       process.exit(1);
+    } else if (hasTempoKey) {
+      network = "tempo";
+      console.log("\u2139\ufe0f  Auto-detected network: Tempo");
     } else if (hasStellarKey) {
       network = "stellar";
       console.log("\u2139\ufe0f  Auto-detected network: Stellar");
@@ -168,7 +178,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
       console.log("\u2139\ufe0f  Auto-detected network: Base");
     } else {
       console.error("\u274c No private keys found");
-      console.error("   Set EVM_PRIVATE_KEY (Base), SVM_PRIVATE_KEY (Solana), or STELLAR_SECRET_KEY (Stellar)");
+      console.error("   Set EVM_PRIVATE_KEY (Base), SVM_PRIVATE_KEY (Solana), STELLAR_SECRET_KEY (Stellar), or TEMPO_PRIVATE_KEY (Tempo)");
       process.exit(1);
     }
   }
@@ -176,7 +186,16 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   let client: any = null;
   let mppFetch: typeof globalThis.fetch | null = null;
 
-  if (network === "stellar") {
+  if (network === "tempo") {
+    console.log("\n\ud83d\udd27 Creating Tempo signer...");
+    const account = privateKeyToAccount(tempoPrivateKey);
+    console.log(`\u2705 Tempo signer created: ${account.address}`);
+    const mppClient = Mppx.create({
+      methods: [tempo.charge({ account })],
+      polyfill: false,
+    });
+    mppFetch = mppClient.fetch;
+  } else if (network === "stellar") {
     console.log("\n\ud83d\udd27 Creating Stellar signer...");
     const mppClient = Mppx.create({
       methods: [
@@ -228,8 +247,8 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   if (minAccountAge !== undefined) console.log(`   Min account age: ${minAccountAge} days`);
   console.log();
 
-  // Stellar MPP flow
-  if (network === "stellar" && mppFetch) {
+  // MPP flow (Stellar, Tempo)
+  if ((network === "stellar" || network === "tempo") && mppFetch) {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       ...(identityToken && { "X-Molty-Identity-Token": identityToken }),

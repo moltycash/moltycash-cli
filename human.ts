@@ -10,10 +10,12 @@ import { createKeyPairSignerFromBytes } from "@solana/kit";
 import bs58 from "bs58";
 import { Mppx } from "@stellar/mpp/charge/client";
 import { stellar } from "@stellar/mpp/charge/client";
+import { tempo } from "mppx/client";
 
 const privateKey = process.env.EVM_PRIVATE_KEY as Hex;
 const svmPrivateKey = process.env.SVM_PRIVATE_KEY as string;
 const stellarSecretKey = process.env.STELLAR_SECRET_KEY as string;
+const tempoPrivateKey = process.env.TEMPO_PRIVATE_KEY as Hex;
 const baseURL = process.env.RESOURCE_SERVER_URL || "https://api.molty.cash";
 const identityToken = process.env.MOLTY_IDENTITY_TOKEN as string | undefined;
 
@@ -51,19 +53,20 @@ function parseAmount(amountStr: string): number {
 
 type NetworkConfig =
   | { network: "base" | "solana"; client: any }
-  | { network: "stellar"; mppFetch: typeof globalThis.fetch };
+  | { network: "stellar" | "tempo"; mppFetch: typeof globalThis.fetch };
 
 async function setupNetwork(args: minimist.ParsedArgs): Promise<NetworkConfig> {
   const hasEvmKey = !!privateKey;
   const hasSvmKey = !!svmPrivateKey;
   const hasStellarKey = !!stellarSecretKey;
-  const keyCount = [hasEvmKey, hasSvmKey, hasStellarKey].filter(Boolean).length;
+  const hasTempoKey = !!tempoPrivateKey;
+  const keyCount = [hasEvmKey, hasSvmKey, hasStellarKey, hasTempoKey].filter(Boolean).length;
 
-  let network: "base" | "solana" | "stellar";
+  let network: "base" | "solana" | "stellar" | "tempo";
 
   if (args.network) {
-    if (!["base", "solana", "stellar"].includes(args.network.toLowerCase())) {
-      console.error("Network must be 'base', 'solana', or 'stellar'");
+    if (!["base", "solana", "stellar", "tempo"].includes(args.network.toLowerCase())) {
+      console.error("Network must be 'base', 'solana', 'stellar', or 'tempo'");
       process.exit(1);
     }
     network = args.network.toLowerCase() as typeof network;
@@ -80,11 +83,18 @@ async function setupNetwork(args: minimist.ParsedArgs): Promise<NetworkConfig> {
       console.error("❌ Missing STELLAR_SECRET_KEY environment variable (needed for --network stellar)");
       process.exit(1);
     }
+    if (network === "tempo" && !hasTempoKey) {
+      console.error("❌ Missing TEMPO_PRIVATE_KEY environment variable (needed for --network tempo)");
+      process.exit(1);
+    }
   } else {
     if (keyCount > 1) {
       console.error("❌ Multiple private keys found");
-      console.error("   Please specify which network to use with --network <base|solana|stellar>");
+      console.error("   Please specify which network to use with --network <base|solana|stellar|tempo>");
       process.exit(1);
+    } else if (hasTempoKey) {
+      network = "tempo";
+      console.log("ℹ️  Auto-detected network: Tempo");
     } else if (hasStellarKey) {
       network = "stellar";
       console.log("ℹ️  Auto-detected network: Stellar");
@@ -96,9 +106,20 @@ async function setupNetwork(args: minimist.ParsedArgs): Promise<NetworkConfig> {
       console.log("ℹ️  Auto-detected network: Base");
     } else {
       console.error("❌ No private keys found");
-      console.error("   Set EVM_PRIVATE_KEY (Base), SVM_PRIVATE_KEY (Solana), or STELLAR_SECRET_KEY (Stellar)");
+      console.error("   Set EVM_PRIVATE_KEY (Base), SVM_PRIVATE_KEY (Solana), STELLAR_SECRET_KEY (Stellar), or TEMPO_PRIVATE_KEY (Tempo)");
       process.exit(1);
     }
+  }
+
+  if (network === "tempo") {
+    console.log("\n🔧 Creating Tempo signer...");
+    const account = privateKeyToAccount(tempoPrivateKey);
+    console.log(`✅ Tempo signer created: ${account.address}`);
+    const mppClient = Mppx.create({
+      methods: [tempo.charge({ account })],
+      polyfill: false,
+    });
+    return { network: "tempo", mppFetch: mppClient.fetch };
   }
 
   if (network === "stellar") {
@@ -154,9 +175,9 @@ function buildExplorerUrl(txHash?: string, network?: string): string | undefined
   return undefined;
 }
 
-// ─── Stellar MPP Helper ─────────────────────────────────────
+// ─── MPP Helper ─────────────────────────────────────────────
 
-async function stellarMppCall(
+async function mppCall(
   mppFetch: typeof globalThis.fetch,
   endpoint: string,
   method: string,
@@ -239,9 +260,9 @@ async function handleTip(args: minimist.ParsedArgs): Promise<void> {
   if (identityToken) console.log(`   🔐 Sending as verified sender`);
   console.log();
 
-  // Stellar MPP flow
-  if (networkConfig.network === "stellar") {
-    const result = await stellarMppCall(
+  // MPP flow (Stellar, Tempo)
+  if (networkConfig.network === "stellar" || networkConfig.network === "tempo") {
+    const result = await mppCall(
       networkConfig.mppFetch,
       tipEndpoint,
       "tip",
@@ -249,13 +270,14 @@ async function handleTip(args: minimist.ParsedArgs): Promise<void> {
     );
 
     console.log(`✅ ${result.amount || amount} USDC sent to @${result.to || username}`);
-    if (result.transaction?.explorer) console.log(`🔗 ${result.transaction.explorer}`);
+    const explorerUrl = result.transaction?.explorer || buildExplorerUrl(result.transaction_hash, result.network);
+    if (explorerUrl) console.log(`🔗 ${explorerUrl}`);
     if (result.receipt) console.log(`📄 ${result.receipt}`);
     return;
   }
 
   // x402 flow (Base/Solana)
-  const { client } = networkConfig;
+  const { client } = networkConfig as { network: "base" | "solana"; client: any };
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "X-A2A-Extensions": X402_EXTENSION_URI,
@@ -393,9 +415,9 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
   console.log(`   Task: ${description}`);
   console.log();
 
-  // Stellar MPP flow
-  if (networkConfig.network === "stellar") {
-    const result = await stellarMppCall(
+  // MPP flow (Stellar, Tempo)
+  if (networkConfig.network === "stellar" || networkConfig.network === "tempo") {
+    const result = await mppCall(
       networkConfig.mppFetch,
       hireEndpoint,
       "hire",
@@ -403,13 +425,14 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
     );
 
     console.log(`✅ @${result.to || username} hired for ${result.amount || amount} USDC`);
-    if (result.transaction?.explorer) console.log(`🔗 ${result.transaction.explorer}`);
+    const explorerUrl = result.transaction?.explorer || buildExplorerUrl(result.transaction_hash, result.network);
+    if (explorerUrl) console.log(`🔗 ${explorerUrl}`);
     if (result.receipt) console.log(`📄 ${result.receipt}`);
     return;
   }
 
   // x402 flow (Base/Solana)
-  const { client } = networkConfig;
+  const { client } = networkConfig as { network: "base" | "solana"; client: any };
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "X-A2A-Extensions": X402_EXTENSION_URI,
