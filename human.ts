@@ -8,9 +8,12 @@ import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { registerExactSvmScheme } from "@x402/svm/exact/client";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import bs58 from "bs58";
+import { Mppx } from "@stellar/mpp/charge/client";
+import { stellar } from "@stellar/mpp/charge/client";
 
 const privateKey = process.env.EVM_PRIVATE_KEY as Hex;
 const svmPrivateKey = process.env.SVM_PRIVATE_KEY as string;
+const stellarSecretKey = process.env.STELLAR_SECRET_KEY as string;
 const baseURL = process.env.RESOURCE_SERVER_URL || "https://api.molty.cash";
 const identityToken = process.env.MOLTY_IDENTITY_TOKEN as string | undefined;
 
@@ -46,51 +49,81 @@ function parseAmount(amountStr: string): number {
   return amount;
 }
 
-interface NetworkConfig {
-  useSolana: boolean;
-  client: any; // x402Client
-}
+type NetworkConfig =
+  | { network: "base" | "solana"; client: any }
+  | { network: "stellar"; mppFetch: typeof globalThis.fetch };
 
 async function setupNetwork(args: minimist.ParsedArgs): Promise<NetworkConfig> {
   const hasEvmKey = !!privateKey;
   const hasSvmKey = !!svmPrivateKey;
-  let useSolana: boolean;
+  const hasStellarKey = !!stellarSecretKey;
+  const keyCount = [hasEvmKey, hasSvmKey, hasStellarKey].filter(Boolean).length;
+
+  let network: "base" | "solana" | "stellar";
 
   if (args.network) {
-    if (!["base", "solana"].includes(args.network.toLowerCase())) {
-      console.error("Network must be either 'base' or 'solana'");
+    if (!["base", "solana", "stellar"].includes(args.network.toLowerCase())) {
+      console.error("Network must be 'base', 'solana', or 'stellar'");
       process.exit(1);
     }
-    useSolana = args.network.toLowerCase() === "solana";
-    if (useSolana && !hasSvmKey) {
+    network = args.network.toLowerCase() as typeof network;
+
+    if (network === "solana" && !hasSvmKey) {
       console.error("❌ Missing SVM_PRIVATE_KEY environment variable (needed for --network solana)");
       process.exit(1);
     }
-    if (!useSolana && !hasEvmKey) {
+    if (network === "base" && !hasEvmKey) {
       console.error("❌ Missing EVM_PRIVATE_KEY environment variable (needed for --network base)");
       process.exit(1);
     }
-  } else {
-    if (hasEvmKey && hasSvmKey) {
-      console.error("❌ Both EVM_PRIVATE_KEY and SVM_PRIVATE_KEY are set");
-      console.error("   Please specify which network to use with --network <base|solana>");
+    if (network === "stellar" && !hasStellarKey) {
+      console.error("❌ Missing STELLAR_SECRET_KEY environment variable (needed for --network stellar)");
       process.exit(1);
+    }
+  } else {
+    if (keyCount > 1) {
+      console.error("❌ Multiple private keys found");
+      console.error("   Please specify which network to use with --network <base|solana|stellar>");
+      process.exit(1);
+    } else if (hasStellarKey) {
+      network = "stellar";
+      console.log("ℹ️  Auto-detected network: Stellar");
     } else if (hasSvmKey) {
-      useSolana = true;
+      network = "solana";
       console.log("ℹ️  Auto-detected network: Solana");
     } else if (hasEvmKey) {
-      useSolana = false;
+      network = "base";
       console.log("ℹ️  Auto-detected network: Base");
     } else {
       console.error("❌ No private keys found");
-      console.error("   Set EVM_PRIVATE_KEY (for Base) or SVM_PRIVATE_KEY (for Solana)");
+      console.error("   Set EVM_PRIVATE_KEY (Base), SVM_PRIVATE_KEY (Solana), or STELLAR_SECRET_KEY (Stellar)");
       process.exit(1);
     }
   }
 
+  if (network === "stellar") {
+    console.log("\n🔧 Creating Stellar signer...");
+    const mppClient = Mppx.create({
+      methods: [
+        stellar.charge({
+          secretKey: stellarSecretKey,
+          onProgress: (event) => {
+            if (event.type === "challenge") console.log(`   💰 ${event.amount} stroops → ${event.recipient}`);
+            if (event.type === "signing") console.log("   🔐 Signing Soroban transaction...");
+            if (event.type === "paying") console.log("   📤 Submitting payment...");
+            if (event.type === "paid") console.log(`   ✅ Paid! Hash: ${event.hash}`);
+          },
+        }),
+      ],
+      polyfill: false,
+    });
+    console.log("✅ Stellar signer ready");
+    return { network: "stellar", mppFetch: mppClient.fetch };
+  }
+
   const client = new x402Client();
 
-  if (useSolana!) {
+  if (network === "solana") {
     console.log("\n🔧 Creating Solana signer...");
     const privateKeyBytes = bs58.decode(svmPrivateKey);
     const solanaSigner = await createKeyPairSignerFromBytes(privateKeyBytes);
@@ -107,17 +140,53 @@ async function setupNetwork(args: minimist.ParsedArgs): Promise<NetworkConfig> {
     registerExactEvmScheme(client, { signer: account });
   }
 
-  return { useSolana: useSolana!, client };
+  return { network, client };
+}
+
+// ─── Stellar MPP Helper ─────────────────────────────────────
+
+async function stellarMppCall(
+  mppFetch: typeof globalThis.fetch,
+  endpoint: string,
+  method: string,
+  params: Record<string, unknown>,
+): Promise<any> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(identityToken && { "X-Molty-Identity-Token": identityToken }),
+  };
+
+  const body = JSON.stringify({
+    jsonrpc: "2.0",
+    id: 1,
+    method,
+    params,
+  });
+
+  const response = await mppFetch(endpoint, {
+    method: "POST",
+    headers,
+    body,
+  });
+
+  const data = await response.json() as any;
+
+  if (data.error) {
+    throw new Error(data.error.message || "Request failed");
+  }
+
+  return data.result;
 }
 
 // ─── Tip Subcommand ──────────────────────────────────────────
 
 async function handleTip(args: minimist.ParsedArgs): Promise<void> {
   if (args._.length < 3) {
-    console.error("Usage: moltycash human tip <username> <amount> [--network <base|solana>]");
+    console.error("Usage: moltycash human tip <username> <amount> [--network <base|solana|stellar>]");
     console.error("\nExamples:");
     console.error("  moltycash human tip 0xmesuthere 50¢");
     console.error("  moltycash human tip 0xmesuthere 100¢ --network solana");
+    console.error("  moltycash human tip 0xmesuthere 50¢ --network stellar");
     console.error("\nAmount formats: 100¢ (cents - recommended), 0.5 (decimal)");
     process.exit(1);
   }
@@ -148,18 +217,34 @@ async function handleTip(args: minimist.ParsedArgs): Promise<void> {
       console.error(`\n  https://x.com/intent/tweet?text=${tweetText}\n`);
       process.exit(1);
     }
-    // Other errors (network, etc.) — continue and let the tip call fail with a better error
   }
 
-  const { useSolana, client } = await setupNetwork(args);
-
+  const networkConfig = await setupNetwork(args);
   const tipEndpoint = `${baseURL}/${username}/a2a`;
+
   console.log(`\n💸 Tipping @${username} ${amount} USDC...`);
   console.log(`   API: ${tipEndpoint}`);
-  console.log(`   Network: ${useSolana ? "Solana" : "Base"}`);
+  console.log(`   Network: ${networkConfig.network.charAt(0).toUpperCase() + networkConfig.network.slice(1)}`);
   if (identityToken) console.log(`   🔐 Sending as verified sender`);
   console.log();
 
+  // Stellar MPP flow
+  if (networkConfig.network === "stellar") {
+    const result = await stellarMppCall(
+      networkConfig.mppFetch,
+      tipEndpoint,
+      "tip",
+      { amount },
+    );
+
+    console.log(`✅ ${result.amount || amount} USDC sent to @${result.to || username}`);
+    if (result.transaction?.explorer) console.log(`🔗 ${result.transaction.explorer}`);
+    if (result.receipt) console.log(`📄 ${result.receipt}`);
+    return;
+  }
+
+  // x402 flow (Base/Solana)
+  const { client } = networkConfig;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "X-A2A-Extensions": X402_EXTENSION_URI,
@@ -236,10 +321,10 @@ async function handleTip(args: minimist.ParsedArgs): Promise<void> {
 
 async function handleHire(args: minimist.ParsedArgs): Promise<void> {
   if (args._.length < 3 || !args.amount) {
-    console.error('Usage: moltycash human hire <username> "<description>" --amount <USDC> [--network <base|solana>]');
+    console.error('Usage: moltycash human hire <username> "<description>" --amount <USDC> [--network <base|solana|stellar>]');
     console.error("\nExamples:");
     console.error('  moltycash human hire 0xmesuthere "Write an X Article about molty.cash" --amount 1');
-    console.error('  moltycash human hire 0xmesuthere "Review our landing page" --amount 5 --network solana');
+    console.error('  moltycash human hire 0xmesuthere "Review our landing page" --amount 5 --network stellar');
     process.exit(1);
   }
 
@@ -266,15 +351,32 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
     process.exit(1);
   }
 
-  const { useSolana, client } = await setupNetwork(args);
-
+  const networkConfig = await setupNetwork(args);
   const hireEndpoint = `${baseURL}/${username}/a2a`;
+
   console.log(`\n🎯 Hiring @${username} for ${amount} USDC...`);
   console.log(`   API: ${hireEndpoint}`);
-  console.log(`   Network: ${useSolana ? "Solana" : "Base"}`);
+  console.log(`   Network: ${networkConfig.network.charAt(0).toUpperCase() + networkConfig.network.slice(1)}`);
   console.log(`   Task: ${description}`);
   console.log();
 
+  // Stellar MPP flow
+  if (networkConfig.network === "stellar") {
+    const result = await stellarMppCall(
+      networkConfig.mppFetch,
+      hireEndpoint,
+      "hire",
+      { description, amount },
+    );
+
+    console.log(`✅ @${result.to || username} hired for ${result.amount || amount} USDC`);
+    if (result.transaction?.explorer) console.log(`🔗 ${result.transaction.explorer}`);
+    if (result.receipt) console.log(`📄 ${result.receipt}`);
+    return;
+  }
+
+  // x402 flow (Base/Solana)
+  const { client } = networkConfig;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "X-A2A-Extensions": X402_EXTENSION_URI,

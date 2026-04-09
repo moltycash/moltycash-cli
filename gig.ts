@@ -8,9 +8,12 @@ import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { registerExactSvmScheme } from "@x402/svm/exact/client";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import bs58 from "bs58";
+import { Mppx } from "@stellar/mpp/charge/client";
+import { stellar } from "@stellar/mpp/charge/client";
 
 const privateKey = process.env.EVM_PRIVATE_KEY as Hex;
 const svmPrivateKey = process.env.SVM_PRIVATE_KEY as string;
+const stellarSecretKey = process.env.STELLAR_SECRET_KEY as string;
 const baseURL = process.env.RESOURCE_SERVER_URL || "https://api.molty.cash";
 const identityToken = process.env.MOLTY_IDENTITY_TOKEN as string | undefined;
 
@@ -101,7 +104,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   const minAccountAge = args["min-account-age"] ? parseInt(String(args["min-account-age"]), 10) : undefined;
 
   if (!perGigUsdAmount || !description) {
-    console.error('Usage: moltycash gig create "<description>" --price <USDC> [--quantity <n>] [--network <base|solana>] [--min-followers <n>] [--require-premium] [--min-account-age <days>]');
+    console.error('Usage: moltycash gig create "<description>" --price <USDC> [--quantity <n>] [--network <base|solana|stellar>] [--min-followers <n>] [--require-premium] [--min-account-age <days>]');
     console.error('\nExample: moltycash gig create "Take a photo of your local coffee shop" --price 0.1 --quantity 10 --network base');
     process.exit(1);
   }
@@ -124,52 +127,82 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
     process.exit(1);
   }
 
-  // Setup x402 signer
+  // Setup network signer
   const hasEvmKey = !!privateKey;
   const hasSvmKey = !!svmPrivateKey;
-  let useSolana: boolean;
+  const hasStellarKey = !!stellarSecretKey;
+  const keyCount = [hasEvmKey, hasSvmKey, hasStellarKey].filter(Boolean).length;
+  let network: "base" | "solana" | "stellar";
 
   if (args.network) {
-    if (!["base", "solana"].includes(args.network.toLowerCase())) {
-      console.error("Network must be either 'base' or 'solana'");
+    if (!["base", "solana", "stellar"].includes(args.network.toLowerCase())) {
+      console.error("Network must be 'base', 'solana', or 'stellar'");
       process.exit(1);
     }
-    useSolana = args.network.toLowerCase() === "solana";
-    if (useSolana && !hasSvmKey) {
+    network = args.network.toLowerCase() as typeof network;
+    if (network === "solana" && !hasSvmKey) {
       console.error("\u274c Missing SVM_PRIVATE_KEY environment variable (needed for --network solana)");
       process.exit(1);
     }
-    if (!useSolana && !hasEvmKey) {
+    if (network === "base" && !hasEvmKey) {
       console.error("\u274c Missing EVM_PRIVATE_KEY environment variable (needed for --network base)");
       process.exit(1);
     }
-  } else {
-    if (hasEvmKey && hasSvmKey) {
-      console.error("\u274c Both EVM_PRIVATE_KEY and SVM_PRIVATE_KEY are set");
-      console.error("   Please specify which network to use with --network <base|solana>");
+    if (network === "stellar" && !hasStellarKey) {
+      console.error("\u274c Missing STELLAR_SECRET_KEY environment variable (needed for --network stellar)");
       process.exit(1);
+    }
+  } else {
+    if (keyCount > 1) {
+      console.error("\u274c Multiple private keys found");
+      console.error("   Please specify which network to use with --network <base|solana|stellar>");
+      process.exit(1);
+    } else if (hasStellarKey) {
+      network = "stellar";
+      console.log("\u2139\ufe0f  Auto-detected network: Stellar");
     } else if (hasSvmKey) {
-      useSolana = true;
+      network = "solana";
       console.log("\u2139\ufe0f  Auto-detected network: Solana");
     } else if (hasEvmKey) {
-      useSolana = false;
+      network = "base";
       console.log("\u2139\ufe0f  Auto-detected network: Base");
     } else {
       console.error("\u274c No private keys found");
-      console.error("   Set EVM_PRIVATE_KEY (for Base) or SVM_PRIVATE_KEY (for Solana)");
+      console.error("   Set EVM_PRIVATE_KEY (Base), SVM_PRIVATE_KEY (Solana), or STELLAR_SECRET_KEY (Stellar)");
       process.exit(1);
     }
   }
 
-  const client = new x402Client();
+  let client: any = null;
+  let mppFetch: typeof globalThis.fetch | null = null;
 
-  if (useSolana!) {
+  if (network === "stellar") {
+    console.log("\n\ud83d\udd27 Creating Stellar signer...");
+    const mppClient = Mppx.create({
+      methods: [
+        stellar.charge({
+          secretKey: stellarSecretKey,
+          onProgress: (event: any) => {
+            if (event.type === "challenge") console.log(`   \ud83d\udcb0 ${event.amount} stroops \u2192 ${event.recipient}`);
+            if (event.type === "signing") console.log("   \ud83d\udd10 Signing Soroban transaction...");
+            if (event.type === "paying") console.log("   \ud83d\udce4 Submitting payment...");
+            if (event.type === "paid") console.log(`   \u2705 Paid! Hash: ${event.hash}`);
+          },
+        }),
+      ],
+      polyfill: false,
+    });
+    mppFetch = mppClient.fetch;
+    console.log("\u2705 Stellar signer ready");
+  } else if (network === "solana") {
+    client = new x402Client();
     console.log("\n\ud83d\udd27 Creating Solana signer...");
     const privateKeyBytes = bs58.decode(svmPrivateKey);
     const solanaSigner = await createKeyPairSignerFromBytes(privateKeyBytes);
     console.log(`\u2705 Solana signer created: ${solanaSigner.address}`);
     registerExactSvmScheme(client, { signer: solanaSigner });
   } else {
+    client = new x402Client();
     console.log("\n\ud83d\udd27 Creating Base signer...");
     if (!privateKey.startsWith("0x")) {
       console.error("\u274c EVM_PRIVATE_KEY must start with '0x'");
@@ -186,14 +219,49 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   if (requirePremium) eligibilityParams.require_premium = true;
   if (minAccountAge !== undefined) eligibilityParams.min_account_age_days = minAccountAge;
 
+  const networkName = network.charAt(0).toUpperCase() + network.slice(1);
   console.log(`\n\ud83c\udfaf Creating gig: ${totalSlots} slot(s) at ${perPostPrice} USDC each (total: ${amount} USDC)`);
-  console.log(`   Network: ${useSolana! ? "Solana" : "Base"}`);
+  console.log(`   Network: ${networkName}`);
   console.log(`   Description: ${description}`);
   if (minFollowers !== undefined) console.log(`   Min followers: ${minFollowers}`);
   if (requirePremium) console.log(`   Require premium: yes`);
   if (minAccountAge !== undefined) console.log(`   Min account age: ${minAccountAge} days`);
   console.log();
 
+  // Stellar MPP flow
+  if (network === "stellar" && mppFetch) {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...(identityToken && { "X-Molty-Identity-Token": identityToken }),
+    };
+
+    const body = JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "gig.create",
+      params: { price: perPostPrice, quantity: totalSlots, description, ...eligibilityParams },
+    });
+
+    const response = await mppFetch(`${baseURL}/a2a`, {
+      method: "POST",
+      headers,
+      body,
+    });
+
+    const data = await response.json() as any;
+    if (data.error) throw new Error(data.error.message || "Gig creation failed");
+
+    const result = data.result;
+    console.log(`\u2705 Gig created!`);
+    if (result.description) console.log(`   ${result.description}`);
+    if (result.total_slots) console.log(`   ${result.total_slots} slots at ${result.per_post_price} USDC each`);
+    if (result.deadline) console.log(`   Deadline: ${result.deadline}`);
+    if (result.transaction?.explorer) console.log(`\ud83d\udd17 ${result.transaction.explorer}`);
+    if (result.receipt) console.log(`\ud83d\udcc4 ${result.receipt}`);
+    return;
+  }
+
+  // x402 flow (Base/Solana)
   // Phase 1: Get payment requirements
   console.log("\ud83d\udcb3 Phase 1: Requesting payment requirements...");
   const phase1Result = await a2aCall(
@@ -239,8 +307,8 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
         console.log(`   ${data.description}`);
         console.log(`   ${data.total_slots} slots at ${data.per_post_price} USDC each`);
         console.log(`   Deadline: ${data.deadline}`);
-        if (data.transaction?.explorer) console.log(`🔗 ${data.transaction.explorer}`);
-        if (data.receipt) console.log(`📄 ${data.receipt}`);
+        if (data.transaction?.explorer) console.log(`\ud83d\udd17 ${data.transaction.explorer}`);
+        if (data.receipt) console.log(`\ud83d\udcc4 ${data.receipt}`);
         return;
       } catch {
         // ignore parse errors
