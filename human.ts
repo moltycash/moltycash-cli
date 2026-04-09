@@ -143,6 +143,17 @@ async function setupNetwork(args: minimist.ParsedArgs): Promise<NetworkConfig> {
   return { network, client };
 }
 
+// ─── Explorer URL Helper ─────────────────────────────────────
+
+function buildExplorerUrl(txHash?: string, network?: string): string | undefined {
+  if (!txHash) return undefined;
+  if (network === 'solana') return `https://solscan.io/tx/${txHash}`;
+  if (network === 'tempo') return `https://explore.tempo.xyz/receipt/${txHash}`;
+  if (network === 'stellar') return `https://stellar.expert/explorer/public/tx/${txHash}`;
+  if (network === 'base' || txHash.startsWith('0x')) return `https://basescan.org/tx/${txHash}`;
+  return undefined;
+}
+
 // ─── Stellar MPP Helper ─────────────────────────────────────
 
 async function stellarMppCall(
@@ -295,19 +306,41 @@ async function handleTip(args: minimist.ParsedArgs): Promise<void> {
 
   const result = phase2Response.data.result;
 
+  // Try artifacts first
   const artifacts = result.artifacts || [];
   for (const artifact of artifacts) {
     if (artifact.data) {
       try {
         const data = JSON.parse(Buffer.from(artifact.data, "base64").toString());
         console.log(`✅ ${data.amount || amount} USDC sent to @${data.to || username}`);
-        if (data.transaction?.explorer) console.log(`🔗 ${data.transaction.explorer}`);
+        const explorerUrl = data.transaction?.explorer || buildExplorerUrl(data.transaction_hash, data.network);
+        if (explorerUrl) console.log(`🔗 ${explorerUrl}`);
         if (data.receipt) console.log(`📄 ${data.receipt}`);
         return;
       } catch {
         // ignore parse errors
       }
     }
+  }
+
+  // Fallback: check direct result fields
+  if (result.type === 'tip' || result.to) {
+    console.log(`✅ ${result.amount || amount} USDC sent to @${result.to || username}`);
+    const explorerUrl = result.transaction?.explorer || buildExplorerUrl(result.transaction_hash, result.network);
+    if (explorerUrl) console.log(`🔗 ${explorerUrl}`);
+    if (result.receipt) console.log(`📄 ${result.receipt}`);
+    return;
+  }
+
+  // Fallback: check payment receipts in metadata
+  const receipts = result.status?.message?.metadata?.["x402.payment.receipts"];
+  if (receipts?.[0]?.transaction) {
+    const r = receipts[0];
+    const network = r.network?.includes('solana') ? 'solana' : r.network?.includes('stellar') ? 'stellar' : r.network?.includes('4217') ? 'tempo' : 'base';
+    console.log(`✅ ${amount} USDC sent to @${username}`);
+    const explorerUrl = buildExplorerUrl(r.transaction, network);
+    if (explorerUrl) console.log(`🔗 ${explorerUrl}`);
+    return;
   }
 
   const msg = result.status?.message?.parts
@@ -434,7 +467,8 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
       try {
         const data = JSON.parse(Buffer.from(artifact.data, "base64").toString());
         console.log(`✅ @${data.to || username} hired for ${data.amount || amount} USDC`);
-        if (data.transaction?.explorer) console.log(`🔗 ${data.transaction.explorer}`);
+        const explorerUrl = data.transaction?.explorer || buildExplorerUrl(data.transaction_hash, data.network);
+        if (explorerUrl) console.log(`🔗 ${explorerUrl}`);
         if (data.receipt) console.log(`📄 ${data.receipt}`);
         return;
       } catch {
