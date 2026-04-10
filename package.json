@@ -45,6 +45,7 @@
     "@x402/core": "^2.0.0",
     "@x402/evm": "^2.0.0",
     "@x402/svm": "^2.0.0",
+    "@monad-crypto/mpp": "^0.0.2",
     "@stellar/mpp": "^0.4.0",
     "@stellar/stellar-sdk": "^14.6.1",
     "axios": "^1.13.2",

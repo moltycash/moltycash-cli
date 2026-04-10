@@ -144,6 +144,13 @@
   dependencies:
     zod "^4.0"
 
+"@monad-crypto/mpp@^0.0.2":
+  version "0.0.2"
+  resolved "https://registry.yarnpkg.com/@monad-crypto/mpp/-/mpp-0.0.2.tgz#72b82ffd78228c883d7407191dc50372f709615a"
+  integrity sha512-TTuYMfIkuK0vMCstb2Ypc+gKZkN6GjO01Tw3Sj7UzrC7Hl9c6pVF6kGPRoTAo3f3AtCYDPzO67LQQ5iMgnDuEA==
+  dependencies:
+    zod "4.3.6"
+
 "@noble/ciphers@^1.3.0":
   version "1.3.0"
   resolved "https://registry.npmjs.org/@noble/ciphers/-/ciphers-1.3.0.tgz"
@@ -1303,12 +1310,12 @@ yaml@^2.8.2:
   resolved "https://registry.yarnpkg.com/yaml/-/yaml-2.8.3.tgz#a0d6bd2efb3dd03c59370223701834e60409bd7d"
   integrity sha512-AvbaCLOO2Otw/lW5bmh9d/WEdcDFdQp2Z2ZUH3pX9U2ihyUY0nvLv7J6TrWowklRGPYbB/IuIMfYgxaCPg5Bpg==
 
+zod@4.3.6, zod@^4.0, zod@^4.3.6:
+  version "4.3.6"
+  resolved "https://registry.yarnpkg.com/zod/-/zod-4.3.6.tgz#89c56e0aa7d2b05107d894412227087885ab112a"
+  integrity sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==
+
 zod@^3.24.2:
   version "3.25.48"
   resolved "https://registry.npmjs.org/zod/-/zod-3.25.48.tgz"
   integrity sha512-0X1mz8FtgEIvaxGjdIImYpZEaZMrund9pGXm3M6vM7Reba0e2eI71KPjSCGXBfwKDPwPoywf6waUKc3/tFvX2Q==
-
-zod@^4.0, zod@^4.3.6:
-  version "4.3.6"
-  resolved "https://registry.yarnpkg.com/zod/-/zod-4.3.6.tgz#89c56e0aa7d2b05107d894412227087885ab112a"
-  integrity sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==

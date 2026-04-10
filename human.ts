@@ -11,11 +11,13 @@ import bs58 from "bs58";
 import { Mppx } from "@stellar/mpp/charge/client";
 import { stellar } from "@stellar/mpp/charge/client";
 import { tempo } from "mppx/client";
+import { monad } from "@monad-crypto/mpp/client";
 
 const privateKey = process.env.EVM_PRIVATE_KEY as Hex;
 const svmPrivateKey = process.env.SVM_PRIVATE_KEY as string;
 const stellarSecretKey = process.env.STELLAR_SECRET_KEY as string;
 const tempoPrivateKey = process.env.TEMPO_PRIVATE_KEY as Hex;
+const monadPrivateKey = process.env.MONAD_PRIVATE_KEY as Hex;
 const baseURL = process.env.RESOURCE_SERVER_URL || "https://api.molty.cash";
 const identityToken = process.env.MOLTY_IDENTITY_TOKEN as string | undefined;
 
@@ -53,20 +55,21 @@ function parseAmount(amountStr: string): number {
 
 type NetworkConfig =
   | { network: "base" | "solana"; client: any }
-  | { network: "stellar" | "tempo"; mppFetch: typeof globalThis.fetch };
+  | { network: "stellar" | "tempo" | "monad"; mppFetch: typeof globalThis.fetch };
 
 async function setupNetwork(args: minimist.ParsedArgs): Promise<NetworkConfig> {
   const hasEvmKey = !!privateKey;
   const hasSvmKey = !!svmPrivateKey;
   const hasStellarKey = !!stellarSecretKey;
   const hasTempoKey = !!tempoPrivateKey;
-  const keyCount = [hasEvmKey, hasSvmKey, hasStellarKey, hasTempoKey].filter(Boolean).length;
+  const hasMonadKey = !!monadPrivateKey;
+  const keyCount = [hasEvmKey, hasSvmKey, hasStellarKey, hasTempoKey, hasMonadKey].filter(Boolean).length;
 
-  let network: "base" | "solana" | "stellar" | "tempo";
+  let network: "base" | "solana" | "stellar" | "tempo" | "monad";
 
   if (args.network) {
-    if (!["base", "solana", "stellar", "tempo"].includes(args.network.toLowerCase())) {
-      console.error("Network must be 'base', 'solana', 'stellar', or 'tempo'");
+    if (!["base", "solana", "stellar", "tempo", "monad"].includes(args.network.toLowerCase())) {
+      console.error("Network must be 'base', 'solana', 'stellar', 'tempo', or 'monad'");
       process.exit(1);
     }
     network = args.network.toLowerCase() as typeof network;
@@ -87,11 +90,18 @@ async function setupNetwork(args: minimist.ParsedArgs): Promise<NetworkConfig> {
       console.error("❌ Missing TEMPO_PRIVATE_KEY environment variable (needed for --network tempo)");
       process.exit(1);
     }
+    if (network === "monad" && !hasMonadKey) {
+      console.error("❌ Missing MONAD_PRIVATE_KEY environment variable (needed for --network monad)");
+      process.exit(1);
+    }
   } else {
     if (keyCount > 1) {
       console.error("❌ Multiple private keys found");
-      console.error("   Please specify which network to use with --network <base|solana|stellar|tempo>");
+      console.error("   Please specify which network to use with --network <base|solana|stellar|tempo|monad>");
       process.exit(1);
+    } else if (hasMonadKey) {
+      network = "monad";
+      console.log("ℹ️  Auto-detected network: Monad");
     } else if (hasTempoKey) {
       network = "tempo";
       console.log("ℹ️  Auto-detected network: Tempo");
@@ -106,9 +116,20 @@ async function setupNetwork(args: minimist.ParsedArgs): Promise<NetworkConfig> {
       console.log("ℹ️  Auto-detected network: Base");
     } else {
       console.error("❌ No private keys found");
-      console.error("   Set EVM_PRIVATE_KEY (Base), SVM_PRIVATE_KEY (Solana), STELLAR_SECRET_KEY (Stellar), or TEMPO_PRIVATE_KEY (Tempo)");
+      console.error("   Set EVM_PRIVATE_KEY (Base), SVM_PRIVATE_KEY (Solana), STELLAR_SECRET_KEY (Stellar), TEMPO_PRIVATE_KEY (Tempo), or MONAD_PRIVATE_KEY (Monad)");
       process.exit(1);
     }
+  }
+
+  if (network === "monad") {
+    console.log("\n🔧 Creating Monad signer...");
+    const account = privateKeyToAccount(monadPrivateKey);
+    console.log(`✅ Monad signer created: ${account.address}`);
+    const mppClient = Mppx.create({
+      methods: [monad.charge({ account })],
+      polyfill: false,
+    });
+    return { network: "monad", mppFetch: mppClient.fetch };
   }
 
   if (network === "tempo") {
@@ -171,6 +192,7 @@ function buildExplorerUrl(txHash?: string, network?: string): string | undefined
   if (network === 'solana') return `https://solscan.io/tx/${txHash}`;
   if (network === 'tempo') return `https://explore.tempo.xyz/receipt/${txHash}`;
   if (network === 'stellar') return `https://stellar.expert/explorer/public/tx/${txHash}`;
+  if (network === 'monad') return `https://monadscan.com/tx/${txHash}`;
   if (network === 'base' || txHash.startsWith('0x')) return `https://basescan.org/tx/${txHash}`;
   return undefined;
 }
@@ -261,7 +283,7 @@ async function handleTip(args: minimist.ParsedArgs): Promise<void> {
   console.log();
 
   // MPP flow (Stellar, Tempo)
-  if (networkConfig.network === "stellar" || networkConfig.network === "tempo") {
+  if (networkConfig.network === "stellar" || networkConfig.network === "tempo" || networkConfig.network === "monad") {
     const result = await mppCall(
       networkConfig.mppFetch,
       tipEndpoint,
@@ -418,7 +440,7 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
   console.log();
 
   // MPP flow (Stellar, Tempo)
-  if (networkConfig.network === "stellar" || networkConfig.network === "tempo") {
+  if (networkConfig.network === "stellar" || networkConfig.network === "tempo" || networkConfig.network === "monad") {
     const result = await mppCall(
       networkConfig.mppFetch,
       hireEndpoint,

@@ -11,11 +11,13 @@ import bs58 from "bs58";
 import { Mppx } from "@stellar/mpp/charge/client";
 import { stellar } from "@stellar/mpp/charge/client";
 import { tempo } from "mppx/client";
+import { monad } from "@monad-crypto/mpp/client";
 
 const privateKey = process.env.EVM_PRIVATE_KEY as Hex;
 const svmPrivateKey = process.env.SVM_PRIVATE_KEY as string;
 const stellarSecretKey = process.env.STELLAR_SECRET_KEY as string;
 const tempoPrivateKey = process.env.TEMPO_PRIVATE_KEY as Hex;
+const monadPrivateKey = process.env.MONAD_PRIVATE_KEY as Hex;
 const baseURL = process.env.RESOURCE_SERVER_URL || "https://api.molty.cash";
 const identityToken = process.env.MOLTY_IDENTITY_TOKEN as string | undefined;
 
@@ -135,12 +137,13 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   const hasSvmKey = !!svmPrivateKey;
   const hasStellarKey = !!stellarSecretKey;
   const hasTempoKey = !!tempoPrivateKey;
-  const keyCount = [hasEvmKey, hasSvmKey, hasStellarKey, hasTempoKey].filter(Boolean).length;
-  let network: "base" | "solana" | "stellar" | "tempo";
+  const hasMonadKey = !!monadPrivateKey;
+  const keyCount = [hasEvmKey, hasSvmKey, hasStellarKey, hasTempoKey, hasMonadKey].filter(Boolean).length;
+  let network: "base" | "solana" | "stellar" | "tempo" | "monad";
 
   if (args.network) {
-    if (!["base", "solana", "stellar", "tempo"].includes(args.network.toLowerCase())) {
-      console.error("Network must be 'base', 'solana', 'stellar', or 'tempo'");
+    if (!["base", "solana", "stellar", "tempo", "monad"].includes(args.network.toLowerCase())) {
+      console.error("Network must be 'base', 'solana', 'stellar', 'tempo', or 'monad'");
       process.exit(1);
     }
     network = args.network.toLowerCase() as typeof network;
@@ -160,11 +163,18 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
       console.error("\u274c Missing TEMPO_PRIVATE_KEY environment variable (needed for --network tempo)");
       process.exit(1);
     }
+    if (network === "monad" && !hasMonadKey) {
+      console.error("\u274c Missing MONAD_PRIVATE_KEY environment variable (needed for --network monad)");
+      process.exit(1);
+    }
   } else {
     if (keyCount > 1) {
       console.error("\u274c Multiple private keys found");
-      console.error("   Please specify which network to use with --network <base|solana|stellar|tempo>");
+      console.error("   Please specify which network to use with --network <base|solana|stellar|tempo|monad>");
       process.exit(1);
+    } else if (hasMonadKey) {
+      network = "monad";
+      console.log("\u2139\ufe0f  Auto-detected network: Monad");
     } else if (hasTempoKey) {
       network = "tempo";
       console.log("\u2139\ufe0f  Auto-detected network: Tempo");
@@ -179,7 +189,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
       console.log("\u2139\ufe0f  Auto-detected network: Base");
     } else {
       console.error("\u274c No private keys found");
-      console.error("   Set EVM_PRIVATE_KEY (Base), SVM_PRIVATE_KEY (Solana), STELLAR_SECRET_KEY (Stellar), or TEMPO_PRIVATE_KEY (Tempo)");
+      console.error("   Set EVM_PRIVATE_KEY (Base), SVM_PRIVATE_KEY (Solana), STELLAR_SECRET_KEY (Stellar), TEMPO_PRIVATE_KEY (Tempo), or MONAD_PRIVATE_KEY (Monad)");
       process.exit(1);
     }
   }
@@ -187,7 +197,16 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   let client: any = null;
   let mppFetch: typeof globalThis.fetch | null = null;
 
-  if (network === "tempo") {
+  if (network === "monad") {
+    console.log("\n\ud83d\udd27 Creating Monad signer...");
+    const account = privateKeyToAccount(monadPrivateKey);
+    console.log(`\u2705 Monad signer created: ${account.address}`);
+    const mppClient = Mppx.create({
+      methods: [monad.charge({ account })],
+      polyfill: false,
+    });
+    mppFetch = mppClient.fetch;
+  } else if (network === "tempo") {
     console.log("\n\ud83d\udd27 Creating Tempo signer...");
     const account = privateKeyToAccount(tempoPrivateKey);
     console.log(`\u2705 Tempo signer created: ${account.address}`);
@@ -250,7 +269,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   console.log();
 
   // MPP flow (Stellar, Tempo)
-  if ((network === "stellar" || network === "tempo") && mppFetch) {
+  if ((network === "stellar" || network === "tempo" || network === "monad") && mppFetch) {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       ...(identityToken && { "X-Molty-Identity-Token": identityToken }),
