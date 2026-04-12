@@ -376,15 +376,16 @@ async function handleTip(args: minimist.ParsedArgs): Promise<void> {
 
 async function handleHire(args: minimist.ParsedArgs): Promise<void> {
   if (args._.length < 3 || !args.amount) {
-    console.error('Usage: moltycash human hire <username> "<description>" --amount <USDC> [--network <base|solana|stellar>]');
+    console.error('Usage: moltycash human hire <username> "<description>" --amount <USDC> [--channel <x>] [--network <base|solana|stellar>]');
     console.error("\nExamples:");
-    console.error('  moltycash human hire 0xmesuthere "Write an X Article about molty.cash" --amount 1');
+    console.error('  moltycash human hire 0xmesuthere "Write an X Article about molty.cash" --amount 1 --channel x');
     console.error('  moltycash human hire 0xmesuthere "Review our landing page" --amount 5 --network stellar');
     process.exit(1);
   }
 
   const username = String(args._[1]);
   const description = args._.slice(2).join(" ").trim();
+  const channel = args.channel ? String(args.channel).toLowerCase() : 'x';
 
   let amount: number;
   try {
@@ -412,6 +413,7 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
   console.log(`\n🎯 Hiring @${username} for ${amount} USDC...`);
   console.log(`   API: ${hireEndpoint}`);
   console.log(`   Network: ${networkConfig.network.charAt(0).toUpperCase() + networkConfig.network.slice(1)}`);
+  console.log(`   Channel: ${channel}`);
   console.log(`   Task: ${description}`);
   console.log();
 
@@ -421,7 +423,7 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
       networkConfig.mppFetch,
       hireEndpoint,
       "hire",
-      { description, amount },
+      { description, amount, channel },
     );
 
     console.log(`✅ @${result.to || username} hired for ${result.amount || amount} USDC`);
@@ -439,7 +441,7 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
     ...(identityToken && { "X-Molty-Identity-Token": identityToken }),
   };
 
-  const hireParams = { description, amount };
+  const hireParams = { description, amount, channel };
 
   // Phase 1: Get payment requirements
   console.log("💳 Phase 1: Requesting payment requirements...");
