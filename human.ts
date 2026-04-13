@@ -385,17 +385,7 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
 
   const username = String(args._[1]);
   const description = args._.slice(2).join(" ").trim();
-  // Resolve service: prefer --service, fall back to legacy --channel (with deprecation warning)
-  let service: string;
-  if (args.service) {
-    service = String(args.service).toLowerCase();
-  } else if (args.channel) {
-    const ch = String(args.channel).toLowerCase();
-    service = ch === 'x' ? 'x_paid_promotion' : ch;
-    console.warn(`⚠️  --channel is deprecated, use --service ${service} instead`);
-  } else {
-    service = 'x_paid_promotion';
-  }
+  const service = args.service ? String(args.service).toLowerCase() : 'x_paid_promotion';
 
   let amount: number;
   try {

@@ -104,17 +104,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   const minFollowers = args["min-followers"] ? parseInt(String(args["min-followers"]), 10) : undefined;
   const requirePremium = !!args["require-premium"];
   const minAccountAge = args["min-account-age"] ? parseInt(String(args["min-account-age"]), 10) : undefined;
-  // Resolve service: prefer --service, fall back to legacy --channel (with deprecation warning)
-  let service: string;
-  if (args.service) {
-    service = String(args.service).toLowerCase();
-  } else if (args.channel) {
-    const ch = String(args.channel).toLowerCase();
-    service = ch === 'x' ? 'x_paid_promotion' : ch;
-    console.warn(`⚠️  --channel is deprecated, use --service ${service} instead`);
-  } else {
-    service = 'x_paid_promotion';
-  }
+  const service = args.service ? String(args.service).toLowerCase() : 'x_paid_promotion';
 
   if (!perGigUsdAmount || !description) {
     console.error('Usage: moltycash gig create "<description>" --price <USDC> [--quantity <n>] [--service <x_paid_promotion>] [--network <base|solana|stellar>] [--min-followers <n>] [--require-premium] [--min-account-age <days>]');
