@@ -104,11 +104,21 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   const minFollowers = args["min-followers"] ? parseInt(String(args["min-followers"]), 10) : undefined;
   const requirePremium = !!args["require-premium"];
   const minAccountAge = args["min-account-age"] ? parseInt(String(args["min-account-age"]), 10) : undefined;
-  const channel = args.channel ? String(args.channel).toLowerCase() : 'x';
+  // Resolve service: prefer --service, fall back to legacy --channel (with deprecation warning)
+  let service: string;
+  if (args.service) {
+    service = String(args.service).toLowerCase();
+  } else if (args.channel) {
+    const ch = String(args.channel).toLowerCase();
+    service = ch === 'x' ? 'x_paid_promotion' : ch;
+    console.warn(`⚠️  --channel is deprecated, use --service ${service} instead`);
+  } else {
+    service = 'x_paid_promotion';
+  }
 
   if (!perGigUsdAmount || !description) {
-    console.error('Usage: moltycash gig create "<description>" --price <USDC> [--quantity <n>] [--channel <x>] [--network <base|solana|stellar>] [--min-followers <n>] [--require-premium] [--min-account-age <days>]');
-    console.error('\nExample: moltycash gig create "Post about molty.cash" --price 0.1 --quantity 10 --channel x --network base');
+    console.error('Usage: moltycash gig create "<description>" --price <USDC> [--quantity <n>] [--service <x_paid_promotion>] [--network <base|solana|stellar>] [--min-followers <n>] [--require-premium] [--min-account-age <days>]');
+    console.error('\nExample: moltycash gig create "Post about molty.cash" --price 0.1 --quantity 10 --service x_paid_promotion --network base');
     process.exit(1);
   }
 
@@ -242,7 +252,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   const networkName = network.charAt(0).toUpperCase() + network.slice(1);
   console.log(`\n\ud83c\udfaf Creating gig: ${totalSlots} slot(s) at ${perPostPrice} USDC each (total: ${amount} USDC)`);
   console.log(`   Network: ${networkName}`);
-  console.log(`   Channel: ${channel}`);
+  console.log(`   Service: ${service}`);
   console.log(`   Description: ${description}`);
   if (minFollowers !== undefined) console.log(`   Min followers: ${minFollowers}`);
   if (requirePremium) console.log(`   Require premium: yes`);
@@ -260,7 +270,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
       jsonrpc: "2.0",
       id: 1,
       method: "gig.create",
-      params: { price: perPostPrice, quantity: totalSlots, description, channel, ...eligibilityParams },
+      params: { price: perPostPrice, quantity: totalSlots, description, service, ...eligibilityParams },
     });
 
     const response = await mppFetch(`${baseURL}/a2a`, {
@@ -287,7 +297,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   console.log("\ud83d\udcb3 Phase 1: Requesting payment requirements...");
   const phase1Result = await a2aCall(
     "gig.create",
-    { price: perPostPrice, quantity: totalSlots, description, channel, ...eligibilityParams },
+    { price: perPostPrice, quantity: totalSlots, description, service, ...eligibilityParams },
     { "X-A2A-Extensions": X402_EXTENSION_URI },
   );
 
@@ -311,7 +321,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
       price: perPostPrice,
       quantity: totalSlots,
       description,
-      channel,
+      service,
       ...eligibilityParams,
       taskId: phase1Result.id,
       payment: signedPayment,

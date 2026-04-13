@@ -376,16 +376,26 @@ async function handleTip(args: minimist.ParsedArgs): Promise<void> {
 
 async function handleHire(args: minimist.ParsedArgs): Promise<void> {
   if (args._.length < 3 || !args.amount) {
-    console.error('Usage: moltycash human hire <username> "<description>" --amount <USDC> [--channel <x>] [--network <base|solana|stellar>]');
+    console.error('Usage: moltycash human hire <username> "<description>" --amount <USDC> [--service <x_paid_promotion>] [--network <base|solana|stellar>]');
     console.error("\nExamples:");
-    console.error('  moltycash human hire 0xmesuthere "Write an X Article about molty.cash" --amount 1 --channel x');
+    console.error('  moltycash human hire 0xmesuthere "Write an X Article about molty.cash" --amount 1 --service x_paid_promotion');
     console.error('  moltycash human hire 0xmesuthere "Review our landing page" --amount 5 --network stellar');
     process.exit(1);
   }
 
   const username = String(args._[1]);
   const description = args._.slice(2).join(" ").trim();
-  const channel = args.channel ? String(args.channel).toLowerCase() : 'x';
+  // Resolve service: prefer --service, fall back to legacy --channel (with deprecation warning)
+  let service: string;
+  if (args.service) {
+    service = String(args.service).toLowerCase();
+  } else if (args.channel) {
+    const ch = String(args.channel).toLowerCase();
+    service = ch === 'x' ? 'x_paid_promotion' : ch;
+    console.warn(`⚠️  --channel is deprecated, use --service ${service} instead`);
+  } else {
+    service = 'x_paid_promotion';
+  }
 
   let amount: number;
   try {
@@ -413,7 +423,7 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
   console.log(`\n🎯 Hiring @${username} for ${amount} USDC...`);
   console.log(`   API: ${hireEndpoint}`);
   console.log(`   Network: ${networkConfig.network.charAt(0).toUpperCase() + networkConfig.network.slice(1)}`);
-  console.log(`   Channel: ${channel}`);
+  console.log(`   Service: ${service}`);
   console.log(`   Task: ${description}`);
   console.log();
 
@@ -423,7 +433,7 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
       networkConfig.mppFetch,
       hireEndpoint,
       "hire",
-      { description, amount, channel },
+      { description, amount, service },
     );
 
     console.log(`✅ @${result.to || username} hired for ${result.amount || amount} USDC`);
@@ -441,7 +451,7 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
     ...(identityToken && { "X-Molty-Identity-Token": identityToken }),
   };
 
-  const hireParams = { description, amount, channel };
+  const hireParams = { description, amount, service };
 
   // Phase 1: Get payment requirements
   console.log("💳 Phase 1: Requesting payment requirements...");
