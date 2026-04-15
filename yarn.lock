@@ -144,10 +144,10 @@
   dependencies:
     zod "^4.0"
 
-"@monad-crypto/mpp@^0.0.2":
-  version "0.0.2"
-  resolved "https://registry.yarnpkg.com/@monad-crypto/mpp/-/mpp-0.0.2.tgz#72b82ffd78228c883d7407191dc50372f709615a"
-  integrity sha512-TTuYMfIkuK0vMCstb2Ypc+gKZkN6GjO01Tw3Sj7UzrC7Hl9c6pVF6kGPRoTAo3f3AtCYDPzO67LQQ5iMgnDuEA==
+"@monad-crypto/mpp@^0.0.3":
+  version "0.0.3"
+  resolved "https://registry.yarnpkg.com/@monad-crypto/mpp/-/mpp-0.0.3.tgz#829dcdaa980bd971051436cb7a77ddc96eaa2127"
+  integrity sha512-Tm4MUB/DcRsxJNKvqy9QnMhWr7GbFE2sqCzGRNFkoLzRxiouckt0HcHTgeaIB+OlJ08mTWsjgFfAszRzSzda0Q==
   dependencies:
     zod "4.3.6"
 
