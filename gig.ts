@@ -107,10 +107,11 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   const minFollowers = args["min-followers"] ? parseInt(String(args["min-followers"]), 10) : undefined;
   const requirePremium = !!args["require-premium"];
   const minAccountAge = args["min-account-age"] ? parseInt(String(args["min-account-age"]), 10) : undefined;
+  const verifiedHumansOnly = !!args["verified-humans-only"];
   const service = args.service ? String(args.service).toLowerCase() : 'x_paid_promotion';
 
   if (!perGigUsdAmount || !description) {
-    console.error('Usage: moltycash gig create "<description>" --price <USDC> [--quantity <n>] [--service <x_paid_promotion>] [--network <base|solana|stellar>] [--min-followers <n>] [--require-premium] [--min-account-age <days>]');
+    console.error('Usage: moltycash gig create "<description>" --price <USDC> [--quantity <n>] [--service <x_paid_promotion>] [--network <base|solana|stellar|tempo|monad|worldchain>] [--min-followers <n>] [--require-premium] [--min-account-age <days>] [--verified-humans-only]');
     console.error('\nExample: moltycash gig create "Post about molty.cash" --price 0.1 --quantity 10 --service x_paid_promotion --network base');
     process.exit(1);
   }
@@ -280,6 +281,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   if (minFollowers !== undefined) eligibilityParams.min_followers = minFollowers;
   if (requirePremium) eligibilityParams.require_premium = true;
   if (minAccountAge !== undefined) eligibilityParams.min_account_age_days = minAccountAge;
+  if (verifiedHumansOnly) eligibilityParams.verified_humans_only = true;
 
   const networkName = network.charAt(0).toUpperCase() + network.slice(1);
   console.log(`\n\ud83c\udfaf Creating gig: ${totalSlots} slot(s) at ${perPostPrice} USDC each (total: ${amount} USDC)`);
