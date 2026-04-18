@@ -18,6 +18,7 @@ const svmPrivateKey = process.env.SVM_PRIVATE_KEY as string;
 const stellarSecretKey = process.env.STELLAR_SECRET_KEY as string;
 const tempoPrivateKey = process.env.TEMPO_PRIVATE_KEY as Hex;
 const monadPrivateKey = process.env.MONAD_PRIVATE_KEY as Hex;
+const worldchainPrivateKey = process.env.WORLDCHAIN_PRIVATE_KEY as Hex;
 const baseURL = process.env.RESOURCE_SERVER_URL || "https://api.molty.cash";
 const identityToken = process.env.MOLTY_IDENTITY_TOKEN as string | undefined;
 
@@ -138,12 +139,13 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   const hasStellarKey = !!stellarSecretKey;
   const hasTempoKey = !!tempoPrivateKey;
   const hasMonadKey = !!monadPrivateKey;
-  const keyCount = [hasEvmKey, hasSvmKey, hasStellarKey, hasTempoKey, hasMonadKey].filter(Boolean).length;
-  let network: "base" | "solana" | "stellar" | "tempo" | "monad";
+  const hasWorldChainKey = !!worldchainPrivateKey;
+  const keyCount = [hasEvmKey, hasSvmKey, hasStellarKey, hasTempoKey, hasMonadKey, hasWorldChainKey].filter(Boolean).length;
+  let network: "base" | "solana" | "stellar" | "tempo" | "monad" | "worldchain";
 
   if (args.network) {
-    if (!["base", "solana", "stellar", "tempo", "monad"].includes(args.network.toLowerCase())) {
-      console.error("Network must be 'base', 'solana', 'stellar', 'tempo', or 'monad'");
+    if (!["base", "solana", "stellar", "tempo", "monad", "worldchain"].includes(args.network.toLowerCase())) {
+      console.error("Network must be 'base', 'solana', 'stellar', 'tempo', 'monad', or 'worldchain'");
       process.exit(1);
     }
     network = args.network.toLowerCase() as typeof network;
@@ -167,11 +169,18 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
       console.error("\u274c Missing MONAD_PRIVATE_KEY environment variable (needed for --network monad)");
       process.exit(1);
     }
+    if (network === "worldchain" && !hasWorldChainKey) {
+      console.error("\u274c Missing WORLDCHAIN_PRIVATE_KEY environment variable (needed for --network worldchain)");
+      process.exit(1);
+    }
   } else {
     if (keyCount > 1) {
       console.error("\u274c Multiple private keys found");
-      console.error("   Please specify which network to use with --network <base|solana|stellar|tempo|monad>");
+      console.error("   Please specify which network to use with --network <base|solana|stellar|tempo|monad|worldchain>");
       process.exit(1);
+    } else if (hasWorldChainKey) {
+      network = "worldchain";
+      console.log("\u2139\ufe0f  Auto-detected network: World Chain");
     } else if (hasMonadKey) {
       network = "monad";
       console.log("\u2139\ufe0f  Auto-detected network: Monad");
@@ -189,7 +198,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
       console.log("\u2139\ufe0f  Auto-detected network: Base");
     } else {
       console.error("\u274c No private keys found");
-      console.error("   Set EVM_PRIVATE_KEY (Base), SVM_PRIVATE_KEY (Solana), STELLAR_SECRET_KEY (Stellar), TEMPO_PRIVATE_KEY (Tempo), or MONAD_PRIVATE_KEY (Monad)");
+      console.error("   Set EVM_PRIVATE_KEY (Base), SVM_PRIVATE_KEY (Solana), STELLAR_SECRET_KEY (Stellar), TEMPO_PRIVATE_KEY (Tempo), MONAD_PRIVATE_KEY (Monad), or WORLDCHAIN_PRIVATE_KEY (World Chain)");
       process.exit(1);
     }
   }
@@ -240,6 +249,20 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
     const solanaSigner = await createKeyPairSignerFromBytes(privateKeyBytes);
     console.log(`\u2705 Solana signer created: ${solanaSigner.address}`);
     registerExactSvmScheme(client, { signer: solanaSigner });
+  } else if (network === "worldchain") {
+    client = new x402Client();
+    console.log("\n\ud83d\udd27 Creating World Chain signer...");
+    if (!worldchainPrivateKey.startsWith("0x")) {
+      console.error("\u274c WORLDCHAIN_PRIVATE_KEY must start with '0x'");
+      process.exit(1);
+    }
+    const account = privateKeyToAccount(worldchainPrivateKey);
+    console.log(`\u2705 World Chain signer created: ${account.address}`);
+    registerExactEvmScheme(client, {
+      signer: account,
+      networks: ["eip155:480"],
+      paymentRequirementsSelector: (_ver: number, reqs: any[]) => reqs.find((r: any) => r.network === "eip155:480") || reqs[0],
+    });
   } else {
     client = new x402Client();
     console.log("\n\ud83d\udd27 Creating Base signer...");

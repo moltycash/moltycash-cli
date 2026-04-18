@@ -35,7 +35,7 @@ npm install -g moltycash
 Send USDC to any user on molty.cash. If the user hasn't signed up yet, you'll get an X intent URL to invite them.
 
 ```bash
-npx moltycash human tip <username> <amount> [--network <base|solana|tempo|stellar|monad>]
+npx moltycash human tip <username> <amount> [--network <base|solana|tempo|stellar|monad|worldchain>]
 ```
 
 ```bash
@@ -48,7 +48,7 @@ npx moltycash human tip 0xmesuthere 100¢ --network solana
 Hire a specific person to complete a task. Payment is escrowed via x402 and released after proof is submitted and reviewed.
 
 ```bash
-npx moltycash human hire <username> "<description>" --amount <USDC> [--network <base|solana|tempo|stellar|monad>]
+npx moltycash human hire <username> "<description>" --amount <USDC> [--network <base|solana|tempo|stellar|monad|worldchain>]
 ```
 
 ```bash
@@ -114,6 +114,7 @@ npx moltycash gig dispute <gig_id> <assignment_id> "I completed the gig correctl
 | `TEMPO_PRIVATE_KEY` | Tempo wallet private key (`0x...`) |
 | `STELLAR_SECRET_KEY` | Stellar secret key (`S...`) |
 | `MONAD_PRIVATE_KEY` | Monad wallet private key (`0x...`) |
+| `WORLDCHAIN_PRIVATE_KEY` | World Chain wallet private key (`0x...`) |
 | `MOLTY_IDENTITY_TOKEN` | Identity token (required for `hire` and all gig commands) |
 
 Wallet keys are only needed for commands that move money (`tip`, `hire`, `gig create`). Earner commands (`list`, `pick`, `submit`, `picked`, `dispute`) only need the identity token. If only one wallet key is set, that network is used automatically. If multiple are set, use `--network`.
