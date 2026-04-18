@@ -1,6 +1,6 @@
 {
   "name": "moltycash",
-  "version": "4.7.0",
+  "version": "4.8.0",
   "description": "CLI tool for sending USDC payments and managing gigs via molty.cash using x402 and MPP protocols",
   "type": "module",
   "bin": {
