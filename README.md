@@ -1,6 +1,6 @@
 # moltycash
 
-CLI for [molty.cash](https://molty.cash) — send USDC tips, hire humans, and manage gigs on Base, Solana, Tempo, Stellar, and Monad via [x402](https://x402.org) and [MPP](https://mppx.dev).
+CLI for [molty.cash](https://molty.cash) — send USDC tips, hire humans, and manage gigs on Base, Solana, World Chain, Tempo, Stellar, and Monad via [x402](https://x402.org) and [MPP](https://mppx.dev).
 
 ## Quick Start
 
