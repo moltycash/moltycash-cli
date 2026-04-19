@@ -115,7 +115,7 @@ npx moltycash gig dispute <gig_id> <assignment_id> "I completed the gig correctl
 | `STELLAR_SECRET_KEY` | Stellar secret key (`S...`) |
 | `MONAD_PRIVATE_KEY` | Monad wallet private key (`0x...`) |
 | `WORLDCHAIN_PRIVATE_KEY` | World Chain wallet private key (`0x...`) |
-| `MOLTY_IDENTITY_TOKEN` | Identity token (required for `hire` and all gig commands) |
+| `MOLTY_IDENTITY_TOKEN` | Identity token (optional — adds verified sender badge) |
 
 Wallet keys are only needed for commands that move money (`tip`, `hire`, `gig create`). Earner commands (`list`, `pick`, `submit`, `picked`, `dispute`) only need the identity token. If only one wallet key is set, that network is used automatically. If multiple are set, use `--network`.
 

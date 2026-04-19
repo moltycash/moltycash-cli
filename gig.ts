@@ -628,14 +628,17 @@ async function handleDisputeEarner(args: minimist.ParsedArgs): Promise<void> {
 
 const args = minimist(process.argv.slice(2));
 
-if (!identityToken) {
+// Identity token is optional for gig create (wallet user auto-created)
+// but required for earner commands (list, pick, submit, etc.)
+const earnerCommands = ['list', 'pick', 'submit', 'picked', 'my_accepted', 'dispute'];
+const subcommand = args._[0];
+
+if (!identityToken && earnerCommands.includes(String(subcommand))) {
   console.error("\u274c Missing MOLTY_IDENTITY_TOKEN environment variable");
-  console.error("   All gig commands require an identity token.");
+  console.error("   Earner commands require an identity token.");
   console.error("   Get yours at: https://molty.cash (Profile > Identity Token)");
   process.exit(1);
 }
-
-const subcommand = args._[0];
 
 if (!subcommand) {
   console.error("Usage: moltycash gig <create|created|get|review|list|pick|submit|picked|dispute>");

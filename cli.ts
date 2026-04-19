@@ -81,7 +81,7 @@ ENVIRONMENT VARIABLES:
   TEMPO_PRIVATE_KEY       Your Tempo/EVM private key (0x...)
   MONAD_PRIVATE_KEY       Your Monad/EVM private key (0x...)
   WORLDCHAIN_PRIVATE_KEY  Your World Chain/EVM private key (0x...)
-  MOLTY_IDENTITY_TOKEN    Identity token (required for gig and hire commands)
+  MOLTY_IDENTITY_TOKEN    Identity token (optional — adds verified sender badge)
 
   If only one key is set, that network is used automatically.
   If multiple keys are set, you must specify --network.
