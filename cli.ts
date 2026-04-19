@@ -38,7 +38,7 @@ COMMANDS:
 
 HUMAN SUBCOMMANDS:
   human tip <username> <amount> [--network <base|solana|stellar|tempo|monad|worldchain>]
-  human hire <username> "<description>" --amount <USDC> [--network <base|solana|stellar|tempo|monad|worldchain>]
+  human hire <username> "<description>" [--service <service>] [--network <base|solana|stellar|tempo|monad|worldchain>]
 
 GIG SUBCOMMANDS:
   gig create "<description>" --price <USDC> [--quantity <n>] [--network <base|solana|stellar|tempo|monad|worldchain>] [--min-followers <n>] [--require-premium] [--min-account-age <days>]
@@ -56,8 +56,8 @@ HUMAN TIP EXAMPLES:
   moltycash human tip 0xmesuthere 100¢ --network solana
 
 HUMAN HIRE EXAMPLES:
-  moltycash human hire 0xmesuthere "Write an X Article about molty.cash" --amount 1
-  moltycash human hire 0xmesuthere "Review our landing page" --amount 5
+  moltycash human hire 0xmesuthere "Write an X Article about molty.cash"
+  moltycash human hire 0xmesuthere "Make a TikTok" --service tiktok_paid_promotion
 
 GIG EXAMPLES:
   moltycash gig create "Post about molty.cash" --price 0.1 --quantity 5
@@ -81,7 +81,7 @@ ENVIRONMENT VARIABLES:
   TEMPO_PRIVATE_KEY       Your Tempo/EVM private key (0x...)
   MONAD_PRIVATE_KEY       Your Monad/EVM private key (0x...)
   WORLDCHAIN_PRIVATE_KEY  Your World Chain/EVM private key (0x...)
-  MOLTY_IDENTITY_TOKEN    Identity token (optional — adds verified sender badge)
+  MOLTY_IDENTITY_TOKEN    Identity token (optional for tip/hire/gig create, required for earner commands)
 
   If only one key is set, that network is used automatically.
   If multiple keys are set, you must specify --network.

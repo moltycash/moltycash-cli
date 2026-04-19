@@ -420,27 +420,18 @@ async function handleTip(args: minimist.ParsedArgs): Promise<void> {
 // ─── Hire Subcommand ─────────────────────────────────────────
 
 async function handleHire(args: minimist.ParsedArgs): Promise<void> {
-  if (args._.length < 3 || !args.amount) {
-    console.error('Usage: moltycash human hire <username> "<description>" --amount <USDC> [--service <x_paid_promotion>] [--network <base|solana|stellar>]');
+  if (args._.length < 3) {
+    console.error('Usage: moltycash human hire <username> "<description>" [--service <service>] [--network <network>]');
     console.error("\nExamples:");
-    console.error('  moltycash human hire 0xmesuthere "Write an X Article about molty.cash" --amount 1 --service x_paid_promotion');
-    console.error('  moltycash human hire 0xmesuthere "Review our landing page" --amount 5 --network stellar');
+    console.error('  moltycash human hire 0xmesuthere "Write an X Article about molty.cash"');
+    console.error('  moltycash human hire 0xmesuthere "Make a TikTok about our product" --service tiktok_paid_promotion');
+    console.error("\nPrice is fixed per service. Check the user's profile for available services and prices.");
     process.exit(1);
   }
 
   const username = String(args._[1]);
   const description = args._.slice(2).join(" ").trim();
-  const service = args.service ? String(args.service).toLowerCase() : 'x_paid_promotion';
-
-  let amount: number;
-  try {
-    amount = parseAmount(String(args.amount));
-    if (amount <= 0) throw new Error("Amount must be greater than 0");
-    if (amount > 10) throw new Error("Amount must be 10 USDC or less");
-  } catch (error: any) {
-    console.error(`❌ ${error.message}`);
-    process.exit(1);
-  }
+  const service = args.service ? String(args.service).toLowerCase() : undefined;
 
   if (!description) {
     console.error("❌ Description is required");
@@ -455,11 +446,12 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
   const networkConfig = await setupNetwork(args);
   const hireEndpoint = `${baseURL}/${username}/a2a`;
 
-  console.log(`\n🎯 Hiring @${username} for ${amount} USDC...`);
+  console.log(`\n🎯 Hiring @${username}...`);
   console.log(`   API: ${hireEndpoint}`);
   console.log(`   Network: ${networkConfig.network.charAt(0).toUpperCase() + networkConfig.network.slice(1)}`);
-  console.log(`   Service: ${service}`);
+  if (service) console.log(`   Service: ${service}`);
   console.log(`   Task: ${description}`);
+  console.log(`   💰 Price determined by service`);
   console.log();
 
   // MPP flow (Stellar, Tempo)
@@ -468,10 +460,10 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
       networkConfig.mppFetch,
       hireEndpoint,
       "hire",
-      { description, amount, service },
+      { description, ...(service && { service }) },
     );
 
-    console.log(`✅ @${result.to || username} hired for ${result.amount || amount} USDC`);
+    console.log(`✅ @${result.to || username} hired for ${result.amount} USDC`);
     const explorerUrl = result.transaction?.explorer || buildExplorerUrl(result.transaction_hash, result.network);
     if (explorerUrl) console.log(`🔗 ${explorerUrl}`);
     if (result.receipt) console.log(`📄 ${result.receipt}`);
@@ -486,7 +478,8 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
     ...(identityToken && { "X-Molty-Identity-Token": identityToken }),
   };
 
-  const hireParams = { description, amount, service };
+  const hireParams: Record<string, unknown> = { description };
+  if (service) hireParams.service = service;
 
   // Phase 1: Get payment requirements
   console.log("💳 Phase 1: Requesting payment requirements...");
@@ -536,7 +529,7 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
     if (artifact.data) {
       try {
         const data = JSON.parse(Buffer.from(artifact.data, "base64").toString());
-        console.log(`✅ @${data.to || username} hired for ${data.amount || amount} USDC`);
+        console.log(`✅ @${data.to || username} hired for ${data.amount} USDC`);
         const explorerUrl = data.transaction?.explorer || buildExplorerUrl(data.transaction_hash, data.network);
         if (explorerUrl) console.log(`🔗 ${explorerUrl}`);
         if (data.receipt) console.log(`📄 ${data.receipt}`);
@@ -549,7 +542,7 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
 
   // Fallback: check for direct result fields
   if (result.type === 'hire' || result.gig_id) {
-    console.log(`✅ @${result.to || username} hired for ${result.amount || amount} USDC`);
+    console.log(`✅ @${result.to || username} hired for ${result.amount} USDC`);
     if (result.transaction?.explorer) console.log(`🔗 ${result.transaction.explorer}`);
     if (result.receipt) console.log(`📄 ${result.receipt}`);
     return;

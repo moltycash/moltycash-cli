@@ -104,15 +104,15 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   const perGigUsdAmount = args.price;
   const quantity = args.quantity || 1;
   const description = args._.slice(1).join(" ").trim();
-  const minFollowers = args["min-followers"] ? parseInt(String(args["min-followers"]), 10) : undefined;
-  const requirePremium = !!args["require-premium"];
-  const minAccountAge = args["min-account-age"] ? parseInt(String(args["min-account-age"]), 10) : undefined;
   const verifiedHumansOnly = !!args["verified-humans-only"];
-  const service = args.service ? String(args.service).toLowerCase() : 'x_paid_promotion';
+  const service = args.service ? String(args.service).toLowerCase() : undefined;
 
   if (!perGigUsdAmount || !description) {
-    console.error('Usage: moltycash gig create "<description>" --price <USDC> [--quantity <n>] [--service <x_paid_promotion>] [--network <base|solana|stellar|tempo|monad|worldchain>] [--min-followers <n>] [--require-premium] [--min-account-age <days>] [--verified-humans-only]');
-    console.error('\nExample: moltycash gig create "Post about molty.cash" --price 0.1 --quantity 10 --service x_paid_promotion --network base');
+    console.error('Usage: moltycash gig create "<description>" --price <USDC> [--quantity <n>] [--service <service>] [--verified-humans-only]');
+    console.error('\nExamples:');
+    console.error('  moltycash gig create "Review my landing page" --price 1');
+    console.error('  moltycash gig create "Post about us" --price 0.5 --service x_paid_promotion');
+    console.error('  moltycash gig create "Verified humans only" --price 0.25 --verified-humans-only');
     process.exit(1);
   }
 
@@ -278,9 +278,6 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
 
   const totalSlots = Math.floor(amount / perPostPrice);
   const eligibilityParams: Record<string, unknown> = {};
-  if (minFollowers !== undefined) eligibilityParams.min_followers = minFollowers;
-  if (requirePremium) eligibilityParams.require_premium = true;
-  if (minAccountAge !== undefined) eligibilityParams.min_account_age_days = minAccountAge;
   if (verifiedHumansOnly) eligibilityParams.verified_humans_only = true;
 
   const networkName = network.charAt(0).toUpperCase() + network.slice(1);
@@ -288,9 +285,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   console.log(`   Network: ${networkName}`);
   console.log(`   Service: ${service}`);
   console.log(`   Description: ${description}`);
-  if (minFollowers !== undefined) console.log(`   Min followers: ${minFollowers}`);
-  if (requirePremium) console.log(`   Require premium: yes`);
-  if (minAccountAge !== undefined) console.log(`   Min account age: ${minAccountAge} days`);
+  if (verifiedHumansOnly) console.log(`   Verified humans only: yes`);
   console.log();
 
   // MPP flow (Stellar, Tempo)

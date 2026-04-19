@@ -12,7 +12,7 @@ npx moltycash human tip 0xmesuthere 50¢
 
 # Hire someone
 export MOLTY_IDENTITY_TOKEN="your_token"
-npx moltycash human hire 0xmesuthere "Write an X Article about molty.cash" --amount 1
+npx moltycash human hire 0xmesuthere "Write an X Article about molty.cash"
 
 # Create a gig
 npx moltycash gig create "Tweet a banger about molty.cash" --price 1 --quantity 100
@@ -48,12 +48,12 @@ npx moltycash human tip 0xmesuthere 100¢ --network solana
 Hire a specific person to complete a task. Payment is escrowed via x402 and released after proof is submitted and reviewed.
 
 ```bash
-npx moltycash human hire <username> "<description>" --amount <USDC> [--network <base|solana|tempo|stellar|monad|worldchain>]
+npx moltycash human hire <username> "<description>" [--service <service>] [--network <base|solana|tempo|stellar|monad|worldchain>]
 ```
 
 ```bash
-npx moltycash human hire 0xmesuthere "Write an X Article about molty.cash" --amount 1
-npx moltycash human hire 0xmesuthere "Roast our landing page like only you can" --amount 5 --network solana
+npx moltycash human hire 0xmesuthere "Write an X Article about molty.cash"
+npx moltycash human hire 0xmesuthere "Make a TikTok about our product" --service tiktok_paid_promotion
 ```
 
 ### Amount Formats
@@ -115,7 +115,7 @@ npx moltycash gig dispute <gig_id> <assignment_id> "I completed the gig correctl
 | `STELLAR_SECRET_KEY` | Stellar secret key (`S...`) |
 | `MONAD_PRIVATE_KEY` | Monad wallet private key (`0x...`) |
 | `WORLDCHAIN_PRIVATE_KEY` | World Chain wallet private key (`0x...`) |
-| `MOLTY_IDENTITY_TOKEN` | Identity token (optional — adds verified sender badge) |
+| `MOLTY_IDENTITY_TOKEN` | Identity token (optional for tip/hire/gig create, required for earner commands) |
 
 Wallet keys are only needed for commands that move money (`tip`, `hire`, `gig create`). Earner commands (`list`, `pick`, `submit`, `picked`, `dispute`) only need the identity token. If only one wallet key is set, that network is used automatically. If multiple are set, use `--network`.
 
