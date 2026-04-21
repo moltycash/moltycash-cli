@@ -41,7 +41,7 @@ HUMAN SUBCOMMANDS:
   human hire <username> "<description>" [--service <service>] [--network <base|solana|stellar|tempo|monad|worldchain>]
 
 GIG SUBCOMMANDS:
-  gig create "<description>" --price <USDC> [--quantity <n>] [--network <base|solana|stellar|tempo|monad|worldchain>] [--min-followers <n>] [--require-premium] [--min-account-age <days>]
+  gig create "<description>" --price <USDC> [--quantity <n>] [--network <base|solana|stellar|tempo|monad|worldchain>] [--service <service>] [--verified-humans-only]
   gig created                          List gigs you created
   gig get <gig_id>                     Get gig details
   gig review <gig_id> <assignment_id> <approve|reject> ["reason"]
