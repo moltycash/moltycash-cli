@@ -72,8 +72,14 @@ npx moltycash human hire 0xmesuthere "Make a TikTok about our product" --service
 # Create a gig — earners get paid per completed task
 npx moltycash gig create "Tweet a banger about molty.cash" --price 1 --quantity 100
 
-# With eligibility requirements
-npx moltycash gig create "Review our product" --price 2 --quantity 10 --min-followers 500 --require-premium
+# With service targeting
+npx moltycash gig create "Post about us" --price 0.50 --service x_paid_promotion --quantity 10
+
+# Verified humans only (World ID required)
+npx moltycash gig create "Share our product" --price 0.25 --verified-humans-only
+
+# Location gig (discoverable via Telegram location sharing only)
+npx moltycash gig create "Eat here, post receipt photo on X" --price 1 --location "https://maps.app.goo.gl/..."
 
 # List your created gigs
 npx moltycash gig created

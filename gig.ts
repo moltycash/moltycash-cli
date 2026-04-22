@@ -106,13 +106,31 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   const description = args._.slice(1).join(" ").trim();
   const verifiedHumansOnly = !!args["verified-humans-only"];
   const service = args.service ? String(args.service).toLowerCase() : undefined;
+  const location = args.location ? String(args.location) : undefined;
+
+  if (location) {
+    try {
+      const url = new URL(location);
+      const validHosts = ['maps.app.goo.gl', 'goo.gl', 'www.google.com', 'google.com', 'maps.google.com'];
+      if (!validHosts.includes(url.hostname)) {
+        console.error("\u274c Invalid --location: must be a Google Maps link");
+        console.error("   Example: https://maps.app.goo.gl/abc123");
+        process.exit(1);
+      }
+    } catch {
+      console.error("\u274c Invalid --location: must be a valid Google Maps URL");
+      console.error("   Example: https://maps.app.goo.gl/abc123");
+      process.exit(1);
+    }
+  }
 
   if (!perGigUsdAmount || !description) {
-    console.error('Usage: moltycash gig create "<description>" --price <USDC> [--quantity <n>] [--service <service>] [--verified-humans-only]');
+    console.error('Usage: moltycash gig create "<description>" --price <USDC> [--quantity <n>] [--service <service>] [--verified-humans-only] [--location <google_maps_url>]');
     console.error('\nExamples:');
     console.error('  moltycash gig create "Review my landing page" --price 1');
     console.error('  moltycash gig create "Post about us" --price 0.5 --service x_paid_promotion');
     console.error('  moltycash gig create "Verified humans only" --price 0.25 --verified-humans-only');
+    console.error('  moltycash gig create "Eat here, post receipt on X" --price 1 --location "https://maps.app.goo.gl/..."');
     process.exit(1);
   }
 
@@ -279,6 +297,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   const totalSlots = Math.floor(amount / perPostPrice);
   const eligibilityParams: Record<string, unknown> = {};
   if (verifiedHumansOnly) eligibilityParams.verified_humans_only = true;
+  if (location) eligibilityParams.location = location;
 
   const networkName = network.charAt(0).toUpperCase() + network.slice(1);
   console.log(`\n\ud83c\udfaf Creating gig: ${totalSlots} slot(s) at ${perPostPrice} USDC each (total: ${amount} USDC)`);
@@ -286,6 +305,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   console.log(`   Service: ${service}`);
   console.log(`   Description: ${description}`);
   if (verifiedHumansOnly) console.log(`   Verified humans only: yes`);
+  if (location) console.log(`   Location: ${location}`);
   console.log();
 
   // MPP flow (Stellar, Tempo)
