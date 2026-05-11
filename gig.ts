@@ -573,14 +573,25 @@ async function handlePick(args: minimist.ParsedArgs): Promise<void> {
 
 async function handleSubmit(args: minimist.ParsedArgs): Promise<void> {
   if (args._.length < 3) {
-    console.error("Usage: moltycash gig submit <gig_id> <proof_url>");
+    console.error("Usage: moltycash gig submit <gig_id> <proof_url> [--code XXXXX]");
     process.exit(1);
   }
 
   const gigId = args._[1];
   const proof = args._[2];
+  const rawCode = args.code as string | undefined;
+  const proofCode = rawCode ? rawCode.trim().toUpperCase() : undefined;
+  if (proofCode && !/^[A-Z0-9]{5}$/.test(proofCode)) {
+    console.error("Error: --code must be exactly 5 alphanumeric characters (A-Z, 0-9)");
+    process.exit(1);
+  }
+
   console.log(`\n\ud83d\udce4 Submitting proof for gig ${gigId}...\n`);
-  const result = await a2aCall("gig.submit_proof", { gig_id: gigId, proof });
+  const result = await a2aCall("gig.submit_proof", {
+    gig_id: gigId,
+    proof,
+    ...(proofCode && { proof_code: proofCode }),
+  });
 
   console.log(`\u2705 Proof submitted!`);
   console.log(`   Assignment: ${result.assignment_id}`);

@@ -47,7 +47,8 @@ GIG SUBCOMMANDS:
   gig review <gig_id> <assignment_id> <approve|reject> ["reason"]
   gig list                             Browse available gigs
   gig pick <gig_id>                    Accept a gig slot
-  gig submit <gig_id> <tweet_url>      Submit proof
+  gig submit <gig_id> <tweet_url> [--code XXXXX]
+                                       Submit proof (--code required for location gigs)
   gig picked                           List gigs you've picked
   gig dispute <gig_id> <assignment_id> ["reason"]
 
