@@ -19,6 +19,9 @@ const stellarSecretKey = process.env.STELLAR_SECRET_KEY as string;
 const tempoPrivateKey = process.env.TEMPO_PRIVATE_KEY as Hex;
 const monadPrivateKey = process.env.MONAD_PRIVATE_KEY as Hex;
 const worldchainPrivateKey = process.env.WORLDCHAIN_PRIVATE_KEY as Hex;
+const skalePrivateKey = process.env.SKALE_PRIVATE_KEY as Hex;
+const SKALE_CHAIN_ID = 1187947933;
+const SKALE_NETWORK_ID = `eip155:${SKALE_CHAIN_ID}` as const;
 const baseURL = process.env.RESOURCE_SERVER_URL || "https://api.molty.cash";
 const identityToken = process.env.MOLTY_IDENTITY_TOKEN as string | undefined;
 
@@ -55,7 +58,7 @@ function parseAmount(amountStr: string): number {
 }
 
 type NetworkConfig =
-  | { network: "base" | "solana" | "worldchain"; client: any }
+  | { network: "base" | "solana" | "worldchain" | "skale"; client: any }
   | { network: "stellar" | "tempo" | "monad"; mppFetch: typeof globalThis.fetch };
 
 async function setupNetwork(args: minimist.ParsedArgs): Promise<NetworkConfig> {
@@ -65,13 +68,14 @@ async function setupNetwork(args: minimist.ParsedArgs): Promise<NetworkConfig> {
   const hasTempoKey = !!tempoPrivateKey;
   const hasMonadKey = !!monadPrivateKey;
   const hasWorldChainKey = !!worldchainPrivateKey;
-  const keyCount = [hasEvmKey, hasSvmKey, hasStellarKey, hasTempoKey, hasMonadKey, hasWorldChainKey].filter(Boolean).length;
+  const hasSkaleKey = !!skalePrivateKey;
+  const keyCount = [hasEvmKey, hasSvmKey, hasStellarKey, hasTempoKey, hasMonadKey, hasWorldChainKey, hasSkaleKey].filter(Boolean).length;
 
-  let network: "base" | "solana" | "stellar" | "tempo" | "monad" | "worldchain";
+  let network: "base" | "solana" | "stellar" | "tempo" | "monad" | "worldchain" | "skale";
 
   if (args.network) {
-    if (!["base", "solana", "stellar", "tempo", "monad", "worldchain"].includes(args.network.toLowerCase())) {
-      console.error("Network must be 'base', 'solana', 'stellar', 'tempo', 'monad', or 'worldchain'");
+    if (!["base", "solana", "stellar", "tempo", "monad", "worldchain", "skale"].includes(args.network.toLowerCase())) {
+      console.error("Network must be 'base', 'solana', 'stellar', 'tempo', 'monad', 'worldchain', or 'skale'");
       process.exit(1);
     }
     network = args.network.toLowerCase() as typeof network;
@@ -100,11 +104,18 @@ async function setupNetwork(args: minimist.ParsedArgs): Promise<NetworkConfig> {
       console.error("❌ Missing WORLDCHAIN_PRIVATE_KEY environment variable (needed for --network worldchain)");
       process.exit(1);
     }
+    if (network === "skale" && !hasSkaleKey) {
+      console.error("❌ Missing SKALE_PRIVATE_KEY environment variable (needed for --network skale)");
+      process.exit(1);
+    }
   } else {
     if (keyCount > 1) {
       console.error("❌ Multiple private keys found");
-      console.error("   Please specify which network to use with --network <base|solana|stellar|tempo|monad|worldchain>");
+      console.error("   Please specify which network to use with --network <base|solana|stellar|tempo|monad|worldchain|skale>");
       process.exit(1);
+    } else if (hasSkaleKey) {
+      network = "skale";
+      console.log("ℹ️  Auto-detected network: SKALE");
     } else if (hasWorldChainKey) {
       network = "worldchain";
       console.log("ℹ️  Auto-detected network: World Chain");
@@ -125,7 +136,7 @@ async function setupNetwork(args: minimist.ParsedArgs): Promise<NetworkConfig> {
       console.log("ℹ️  Auto-detected network: Base");
     } else {
       console.error("❌ No private keys found");
-      console.error("   Set EVM_PRIVATE_KEY (Base), SVM_PRIVATE_KEY (Solana), STELLAR_SECRET_KEY (Stellar), TEMPO_PRIVATE_KEY (Tempo), MONAD_PRIVATE_KEY (Monad), or WORLDCHAIN_PRIVATE_KEY (World Chain)");
+      console.error("   Set EVM_PRIVATE_KEY (Base), SVM_PRIVATE_KEY (Solana), STELLAR_SECRET_KEY (Stellar), TEMPO_PRIVATE_KEY (Tempo), MONAD_PRIVATE_KEY (Monad), WORLDCHAIN_PRIVATE_KEY (World Chain), or SKALE_PRIVATE_KEY (SKALE)");
       process.exit(1);
     }
   }
@@ -193,6 +204,19 @@ async function setupNetwork(args: minimist.ParsedArgs): Promise<NetworkConfig> {
       networks: ["eip155:480"],
       paymentRequirementsSelector: (_ver: number, reqs: any[]) => reqs.find((r: any) => r.network === "eip155:480") || reqs[0],
     });
+  } else if (network === "skale") {
+    console.log("\n🔧 Creating SKALE signer...");
+    if (!skalePrivateKey.startsWith("0x")) {
+      console.error("❌ SKALE_PRIVATE_KEY must start with '0x'");
+      process.exit(1);
+    }
+    const account = privateKeyToAccount(skalePrivateKey);
+    console.log(`✅ SKALE signer created: ${account.address}`);
+    registerExactEvmScheme(client, {
+      signer: account,
+      networks: [SKALE_NETWORK_ID],
+      paymentRequirementsSelector: (_ver: number, reqs: any[]) => reqs.find((r: any) => r.network === SKALE_NETWORK_ID) || reqs[0],
+    });
   } else {
     console.log("\n🔧 Creating Base signer...");
     if (!privateKey.startsWith("0x")) {
@@ -216,6 +240,7 @@ function buildExplorerUrl(txHash?: string, network?: string): string | undefined
   if (network === 'stellar') return `https://stellar.expert/explorer/public/tx/${txHash}`;
   if (network === 'monad') return `https://monadscan.com/tx/${txHash}`;
   if (network === 'worldchain') return `https://worldscan.org/tx/${txHash}`;
+  if (network === 'skale') return `https://skale-base-explorer.skalenodes.com/tx/${txHash}`;
   if (network === 'base' || txHash.startsWith('0x')) return `https://basescan.org/tx/${txHash}`;
   return undefined;
 }

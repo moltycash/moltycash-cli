@@ -37,11 +37,11 @@ COMMANDS:
   gig   <subcommand>
 
 HUMAN SUBCOMMANDS:
-  human tip <username> <amount> [--network <base|solana|stellar|tempo|monad|worldchain>]
-  human hire <username> "<description>" [--service <service>] [--network <base|solana|stellar|tempo|monad|worldchain>]
+  human tip <username> <amount> [--network <base|solana|stellar|tempo|monad|worldchain|skale>]
+  human hire <username> "<description>" [--service <service>] [--network <base|solana|stellar|tempo|monad|worldchain|skale>]
 
 GIG SUBCOMMANDS:
-  gig create "<description>" --price <USDC> [--quantity <n>] [--network <base|solana|stellar|tempo|monad|worldchain>] [--service <service>] [--verified-humans-only] [--location <google_maps_url>]
+  gig create "<description>" --price <USDC> [--quantity <n>] [--network <base|solana|stellar|tempo|monad|worldchain|skale>] [--service <service>] [--verified-humans-only] [--location <google_maps_url>]
   gig created                          List gigs you created
   gig get <gig_id>                     Get gig details
   gig review <gig_id> <assignment_id> <approve|reject> ["reason"]
@@ -73,7 +73,7 @@ AMOUNT FORMATS:
 OPTIONS:
   --help, -h       Show this help message
   --version, -v    Show version number
-  --network        Specify network (base, solana, stellar, tempo, monad, or worldchain)
+  --network        Specify network (base, solana, stellar, tempo, monad, worldchain, or skale)
 
 ENVIRONMENT VARIABLES:
   SVM_PRIVATE_KEY         Your Solana private key
@@ -82,6 +82,7 @@ ENVIRONMENT VARIABLES:
   TEMPO_PRIVATE_KEY       Your Tempo/EVM private key (0x...)
   MONAD_PRIVATE_KEY       Your Monad/EVM private key (0x...)
   WORLDCHAIN_PRIVATE_KEY  Your World Chain/EVM private key (0x...)
+  SKALE_PRIVATE_KEY       Your SKALE Base/EVM private key (0x...)
   MOLTY_IDENTITY_TOKEN    Identity token (optional for tip/hire/gig create, required for earner commands)
 
   If only one key is set, that network is used automatically.
