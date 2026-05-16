@@ -446,7 +446,7 @@ async function handleTip(args: minimist.ParsedArgs): Promise<void> {
 
 async function handleHire(args: minimist.ParsedArgs): Promise<void> {
   if (args._.length < 3) {
-    console.error('Usage: moltycash human hire <username> "<description>" [--service <service>] [--network <network>]');
+    console.error('Usage: moltycash human hire <username> "<description>" [--amount <USDC>] [--service <service>] [--network <network>]');
     console.error("\nExamples:");
     console.error('  moltycash human hire 0xmesuthere "Write an X Article about molty.cash"');
     console.error('  moltycash human hire 0xmesuthere "Make a TikTok about our product" --service tiktok_paid_promotion');
@@ -457,6 +457,18 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
   const username = String(args._[1]);
   const description = args._.slice(2).join(" ").trim();
   const service = args.service ? String(args.service).toLowerCase() : undefined;
+
+  let requestedAmount: number | undefined;
+  if (args.amount !== undefined) {
+    try {
+      requestedAmount = parseAmount(String(args.amount));
+      if (requestedAmount <= 0) throw new Error("Amount must be greater than 0");
+      if (requestedAmount > 10) throw new Error("Amount must be 10 USDC or less");
+    } catch (e: any) {
+      console.error(`❌ ${e.message}`);
+      process.exit(1);
+    }
+  }
 
   if (!description) {
     console.error("❌ Description is required");
@@ -476,7 +488,11 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
   console.log(`   Network: ${networkConfig.network.charAt(0).toUpperCase() + networkConfig.network.slice(1)}`);
   if (service) console.log(`   Service: ${service}`);
   console.log(`   Task: ${description}`);
-  console.log(`   💰 Price determined by service`);
+  if (requestedAmount !== undefined) {
+    console.log(`   💰 Requested: $${requestedAmount} USDC (API enforces per-service minimum)`);
+  } else {
+    console.log(`   💰 Price determined by service`);
+  }
   console.log();
 
   // MPP flow (Stellar, Tempo)
@@ -485,7 +501,7 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
       networkConfig.mppFetch,
       hireEndpoint,
       "hire",
-      { description, ...(service && { service }) },
+      { description, ...(service && { service }), ...(requestedAmount !== undefined && { amount: requestedAmount }) },
     );
 
     console.log(`✅ @${result.to || username} hired for ${result.amount} USDC`);
@@ -505,6 +521,7 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
 
   const hireParams: Record<string, unknown> = { description };
   if (service) hireParams.service = service;
+  if (requestedAmount !== undefined) hireParams.amount = requestedAmount;
 
   // Phase 1: Get payment requirements
   console.log("💳 Phase 1: Requesting payment requirements...");
