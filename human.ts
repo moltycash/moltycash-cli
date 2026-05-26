@@ -445,29 +445,68 @@ async function handleTip(args: minimist.ParsedArgs): Promise<void> {
 // ─── Hire Subcommand ─────────────────────────────────────────
 
 async function handleHire(args: minimist.ParsedArgs): Promise<void> {
-  if (args._.length < 3) {
-    console.error('Usage: moltycash human hire <username> <product_id> ["<description>"] [--network <network>]');
+  // Two forms supported (exactly one required):
+  //   1. Typed (product-based):  hire <username> <product_id> ["task brief"]
+  //   2. Open-format (custom):   hire <username> --custom "<description>" --amount <USD>
+  const username = args._.length >= 2 ? String(args._[1]) : "";
+  const positional3 = args._.length >= 3 ? String(args._[2]).trim() : undefined;
+  const isCustomFlag = args.custom !== undefined;
+  const customDescription = isCustomFlag ? String(args.custom).trim() : undefined;
+  const customAmountRaw = args.amount !== undefined ? args.amount : undefined;
+
+  // Detect mode + validate
+  const looksLikeProductId = positional3 && positional3.startsWith("prod_");
+  const isOpenFormat = isCustomFlag || (customAmountRaw !== undefined && !looksLikeProductId);
+  const isTyped = !isOpenFormat && !!looksLikeProductId;
+
+  if (!username || (!isTyped && !isOpenFormat)) {
+    console.error('Usage:');
+    console.error('  moltycash human hire <username> <product_id> ["<description>"]                  # typed hire');
+    console.error('  moltycash human hire <username> --custom "<description>" --amount <USD>          # open-format hire');
     console.error("\nExamples:");
     console.error('  moltycash human hire 0xmesuthere prod_xyz123');
     console.error('  moltycash human hire 0xmesuthere prod_xyz123 "Custom task brief override"');
-    console.error("\nThe price comes from the product itself. Discover available products via the user's agent card:");
+    console.error('  moltycash human hire 0xmesuthere --custom "Make a 5min Loom of my product" --amount 30');
+    console.error("\nTyped hires use the product's price; open-format hires take your --amount (max 50 USDC).");
+    console.error("Discover a user's products via:");
     console.error('  curl https://api.molty.cash/<username>/.well-known/agent-card.json');
-    console.error("Each user lists their published products (id, type, name, price) under the hire skill.");
     process.exit(1);
   }
 
-  const username = String(args._[1]);
-  const productId = String(args._[2]).trim();
-  const description = args._.slice(3).join(" ").trim() || undefined;
+  // Open-format-specific validation
+  let openAmount: number | undefined;
+  if (isOpenFormat) {
+    if (!customDescription) {
+      console.error("❌ Open-format hire requires --custom \"<description>\".");
+      process.exit(1);
+    }
+    if (customDescription.length > 500) {
+      console.error(`❌ Description too long (${customDescription.length} chars). Max 500 characters.`);
+      process.exit(1);
+    }
+    if (customAmountRaw === undefined) {
+      console.error("❌ Open-format hire requires --amount <USD>.");
+      process.exit(1);
+    }
+    try {
+      openAmount = parseAmount(String(customAmountRaw));
+      if (openAmount <= 0) throw new Error("amount must be greater than 0");
+      if (openAmount > 50) throw new Error("amount must be 50 USDC or less");
+    } catch (e: any) {
+      console.error(`❌ ${e.message}`);
+      process.exit(1);
+    }
+  }
 
-  if (!productId.startsWith("prod_")) {
+  // Typed-specific validation
+  const productId = isTyped ? positional3! : undefined;
+  const briefOverride = isTyped ? args._.slice(3).join(" ").trim() || undefined : undefined;
+  if (isTyped && !productId!.startsWith("prod_")) {
     console.error(`❌ product_id must start with "prod_" (got: ${productId}).`);
-    console.error("Fetch available products from the user's agent card — see usage above.");
     process.exit(1);
   }
-
-  if (description && description.length > 500) {
-    console.error(`❌ Description too long (${description.length} chars). Max 500 characters.`);
+  if (isTyped && briefOverride && briefOverride.length > 500) {
+    console.error(`❌ Description too long (${briefOverride.length} chars). Max 500 characters.`);
     process.exit(1);
   }
 
@@ -477,10 +516,24 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
   console.log(`\n🎯 Hiring @${username}...`);
   console.log(`   API: ${hireEndpoint}`);
   console.log(`   Network: ${networkConfig.network.charAt(0).toUpperCase() + networkConfig.network.slice(1)}`);
-  console.log(`   Product: ${productId}`);
-  if (description) console.log(`   Task brief: ${description}`);
-  console.log(`   💰 Price comes from the product`);
+  if (isTyped) {
+    console.log(`   Product: ${productId}`);
+    if (briefOverride) console.log(`   Task brief: ${briefOverride}`);
+    console.log(`   💰 Price comes from the product`);
+  } else {
+    console.log(`   Format: open (custom task)`);
+    console.log(`   Task: ${customDescription}`);
+    console.log(`   💰 Amount: $${openAmount} USDC`);
+  }
   console.log();
+
+  // Build the JSON-RPC params common to both flows
+  const buildHireParams = (): Record<string, unknown> => {
+    if (isTyped) {
+      return { product_id: productId, ...(briefOverride && { description: briefOverride }) };
+    }
+    return { description: customDescription, amount: openAmount };
+  };
 
   // MPP flow (Stellar, Tempo)
   if (networkConfig.network === "stellar" || networkConfig.network === "tempo" || networkConfig.network === "monad") {
@@ -488,7 +541,7 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
       networkConfig.mppFetch,
       hireEndpoint,
       "hire",
-      { product_id: productId, ...(description && { description }) },
+      buildHireParams(),
     );
 
     console.log(`✅ @${result.to || username} hired for ${result.amount} USDC`);
@@ -506,8 +559,7 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
     ...(identityToken && { "X-Molty-Identity-Token": identityToken }),
   };
 
-  const hireParams: Record<string, unknown> = { product_id: productId };
-  if (description) hireParams.description = description;
+  const hireParams = buildHireParams();
 
   // Phase 1: Get payment requirements
   console.log("💳 Phase 1: Requesting payment requirements...");
@@ -591,12 +643,13 @@ const subcommand = args._[0];
 if (!subcommand) {
   console.error("Usage: moltycash human <tip|hire>");
   console.error("\nSubcommands:");
-  console.error("  tip  <username> <amount>                         Tip USDC to a user");
-  console.error('  hire <username> <product_id> ["description"]    Hire a user for one of their published products');
+  console.error("  tip  <username> <amount>                                                  Tip USDC");
+  console.error('  hire <username> <product_id> ["description"]                              Hire for a published product');
+  console.error('  hire <username> --custom "<description>" --amount <USD>                   Open-format custom hire');
   console.error("\nExamples:");
   console.error("  moltycash human tip 0xmesuthere 50¢");
   console.error("  moltycash human hire 0xmesuthere prod_xyz123");
-  console.error('  moltycash human hire 0xmesuthere prod_xyz123 "Custom task brief"');
+  console.error('  moltycash human hire 0xmesuthere --custom "Make a 5min Loom" --amount 30');
   console.error("\nDiscover available products via the user's agent card:");
   console.error("  curl https://api.molty.cash/<username>/.well-known/agent-card.json");
   process.exit(1);
