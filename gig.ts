@@ -128,17 +128,24 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
     }
   }
 
-  if (!perGigUsdAmount || !description || !service || !productType) {
-    console.error('Usage: moltycash gig create "<description>" --price <USDC> --service <service> --product-type <type> [--quantity <n>] [--verified-humans-only] [--location <google_maps_url>]');
+  if (!perGigUsdAmount || !description) {
+    console.error('Usage: moltycash gig create "<description>" --price <USDC> [--service <service> --product-type <type>] [--quantity <n>] [--verified-humans-only] [--location <google_maps_url>]');
     console.error('\nRequired:');
-    console.error('  --price          USDC price per completed task');
-    console.error('  --service        Platform: x_paid_promotion | instagram_paid_promotion | tiktok_paid_promotion | reddit_paid_promotion | substack_paid_promotion | youtube_paid_promotion');
-    console.error('  --product-type   Format on that platform — must match service. e.g. x_post, x_thread, x_quote, x_short_video, x_long_video, x_article, x_reply, instagram_post, tiktok_video, reddit_post, substack_post, youtube_video');
+    console.error('  --price                  USDC price per completed task');
+    console.error('\nOptional (pass together for a typed gig, or omit both for an open-format gig):');
+    console.error('  --service                Platform: x_paid_promotion | instagram_paid_promotion | tiktok_paid_promotion | reddit_paid_promotion | substack_paid_promotion | youtube_paid_promotion');
+    console.error('  --product-type           Format on that platform — must match service. e.g. x_post, x_thread, x_quote, x_short_video, x_long_video, x_article, x_reply, instagram_post, tiktok_video, reddit_post, substack_post, youtube_video');
     console.error('\nExamples:');
-    console.error('  moltycash gig create "Post about us" --price 0.5 --service x_paid_promotion --product-type x_post');
+    console.error('  moltycash gig create "Review my landing page" --price 1                                            # open-format — any earner can pick');
+    console.error('  moltycash gig create "Post about us" --price 0.5 --service x_paid_promotion --product-type x_post  # typed — only earners with x_post products');
     console.error('  moltycash gig create "Make a TikTok" --price 3 --service tiktok_paid_promotion --product-type tiktok_video --quantity 5');
-    console.error('  moltycash gig create "Eat here, post receipt on X" --price 1 --service x_paid_promotion --product-type x_post --location "https://maps.app.goo.gl/..."');
-    console.error('\nEarners only see / can pick gigs whose product_type matches an enabled product they offer.');
+    console.error('\nTyped gigs: only earners whose enabled products match `product_type` can list/pick. Open-format gigs are visible to every eligible earner.');
+    process.exit(1);
+  }
+
+  // service + product_type must be passed together or both omitted.
+  if ((!!service) !== (!!productType)) {
+    console.error('❌ --service and --product-type must be passed together (or both omitted for an open-format gig).');
     process.exit(1);
   }
 
@@ -332,8 +339,12 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   const networkName = network.charAt(0).toUpperCase() + network.slice(1);
   console.log(`\n\ud83c\udfaf Creating gig: ${totalSlots} slot(s) at ${perPostPrice} USDC each (total: ${amount} USDC)`);
   console.log(`   Network: ${networkName}`);
-  console.log(`   Service: ${service}`);
-  console.log(`   Product type: ${productType}`);
+  if (service && productType) {
+    console.log(`   Service: ${service}`);
+    console.log(`   Product type: ${productType}`);
+  } else {
+    console.log(`   Format: open (any earner can pick)`);
+  }
   console.log(`   Description: ${description}`);
   if (verifiedHumansOnly) console.log(`   Verified humans only: yes`);
   if (location) console.log(`   Location: ${location}`);
@@ -350,7 +361,14 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
       jsonrpc: "2.0",
       id: 1,
       method: "gig.create",
-      params: { price: perPostPrice, quantity: totalSlots, description, service, product_type: productType, ...eligibilityParams },
+      params: {
+        price: perPostPrice,
+        quantity: totalSlots,
+        description,
+        ...(service && { service }),
+        ...(productType && { product_type: productType }),
+        ...eligibilityParams,
+      },
     });
 
     const response = await mppFetch(`${baseURL}/a2a`, {
@@ -377,7 +395,14 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   console.log("\ud83d\udcb3 Phase 1: Requesting payment requirements...");
   const phase1Result = await a2aCall(
     "gig.create",
-    { price: perPostPrice, quantity: totalSlots, description, service, product_type: productType, ...eligibilityParams },
+    {
+      price: perPostPrice,
+      quantity: totalSlots,
+      description,
+      ...(service && { service }),
+      ...(productType && { product_type: productType }),
+      ...eligibilityParams,
+    },
     { "X-A2A-Extensions": X402_EXTENSION_URI },
   );
 
@@ -401,8 +426,8 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
       price: perPostPrice,
       quantity: totalSlots,
       description,
-      service,
-      product_type: productType,
+      ...(service && { service }),
+      ...(productType && { product_type: productType }),
       ...eligibilityParams,
       taskId: phase1Result.id,
       payment: signedPayment,
