@@ -445,82 +445,49 @@ async function handleTip(args: minimist.ParsedArgs): Promise<void> {
 // ─── Hire Subcommand ─────────────────────────────────────────
 
 async function handleHire(args: minimist.ParsedArgs): Promise<void> {
-  // Three forms supported (exactly one required):
-  //   1. Typed by service + type:  hire <username> --service <svc> --product-type <type> ["brief"]
-  //   2. Typed by product_id:      hire <username> <product_id> ["brief"]      (legacy)
-  //   3. Open-format (custom):     hire <username> --custom "<description>" --amount <USD>
+  // Unified shape: hire <username> "<description>" --amount <USD> [--service <svc> --product-type <type>]
+  //   - description: required (positional or --description)
+  //   - --amount: required (USD, max 50)
+  //   - --service + --product-type: optional, must be paired (both or neither).
+  //     When omitted the gig is stamped as custom_service / custom_product (open-format).
   const username = args._.length >= 2 ? String(args._[1]) : "";
-  const positional3 = args._.length >= 3 ? String(args._[2]).trim() : undefined;
+  const positionalDescription = args._.length >= 3 ? args._.slice(2).join(" ").trim() : "";
+  const flagDescription = args.description !== undefined ? String(args.description).trim() : "";
+  const description = flagDescription || positionalDescription;
+
   const svcFlag = args.service !== undefined ? String(args.service).toLowerCase() : undefined;
   const typeFlag = args["product-type"] !== undefined ? String(args["product-type"]).toLowerCase() : undefined;
-  const isCustomFlag = args.custom !== undefined;
-  const customDescription = isCustomFlag ? String(args.custom).trim() : undefined;
-  const customAmountRaw = args.amount !== undefined ? args.amount : undefined;
+  const amountRaw = args.amount !== undefined ? args.amount : undefined;
+  const partialFlags = !!svcFlag !== !!typeFlag;
 
-  // Detect mode + validate
-  const looksLikeProductId = positional3 && positional3.startsWith("prod_");
-  const hasTypeFlags = !!svcFlag && !!typeFlag;
-  const isOpenFormat = isCustomFlag || (customAmountRaw !== undefined && !looksLikeProductId && !hasTypeFlags);
-  const isTypedById = !isOpenFormat && !!looksLikeProductId;
-  const isTypedByFlags = !isOpenFormat && !isTypedById && hasTypeFlags;
-  const partialFlags = (!!svcFlag !== !!typeFlag);
-
-  if (!username || partialFlags || (!isTypedById && !isTypedByFlags && !isOpenFormat)) {
+  if (!username || !description || amountRaw === undefined || partialFlags) {
     console.error('Usage:');
-    console.error('  moltycash human hire <username> --service <svc> --product-type <type> ["brief"]   # typed (readable)');
-    console.error('  moltycash human hire <username> <product_id> ["brief"]                            # typed (by id)');
-    console.error('  moltycash human hire <username> --custom "<description>" --amount <USD>           # open-format');
+    console.error('  moltycash human hire <username> "<description>" --amount <USD> [--service <svc> --product-type <type>]');
     console.error("\nExamples:");
-    console.error('  moltycash human hire 0xmesuthere --service x_paid_promotion --product-type x_article');
-    console.error('  moltycash human hire 0xmesuthere prod_xyz123');
-    console.error('  moltycash human hire 0xmesuthere --custom "Make a 5min Loom" --amount 30');
-    console.error("\nTyped hires use the product's price; open-format hires take your --amount (max 50 USDC).");
-    console.error("Discover a user's products via:");
+    console.error('  moltycash human hire 0xmesuthere "Make a 5min Loom" --amount 30');
+    console.error('  moltycash human hire 0xmesuthere "Write an X article on x402" --amount 7 --service x_paid_promotion --product-type x_article');
+    console.error("\n--service and --product-type must be passed together, or both omitted (open-format).");
+    console.error("Amount is in USDC, capped at 50. Discover available products via:");
     console.error('  curl https://api.molty.cash/<username>/.well-known/agent-card.json');
     process.exit(1);
   }
 
-  // Open-format-specific validation
-  let openAmount: number | undefined;
-  if (isOpenFormat) {
-    if (!customDescription) {
-      console.error("❌ Open-format hire requires --custom \"<description>\".");
-      process.exit(1);
-    }
-    if (customDescription.length > 500) {
-      console.error(`❌ Description too long (${customDescription.length} chars). Max 500 characters.`);
-      process.exit(1);
-    }
-    if (customAmountRaw === undefined) {
-      console.error("❌ Open-format hire requires --amount <USD>.");
-      process.exit(1);
-    }
-    try {
-      openAmount = parseAmount(String(customAmountRaw));
-      if (openAmount <= 0) throw new Error("amount must be greater than 0");
-      if (openAmount > 50) throw new Error("amount must be 50 USDC or less");
-    } catch (e: any) {
-      console.error(`❌ ${e.message}`);
-      process.exit(1);
-    }
+  if (description.length > 500) {
+    console.error(`❌ Description too long (${description.length} chars). Max 500 characters.`);
+    process.exit(1);
   }
 
-  // Typed-by-id validation
-  const productId = isTypedById ? positional3! : undefined;
-  // Brief override: positional[3+] for typed-by-id; --brief flag or trailing positional for typed-by-flags
-  const briefOverride = isTypedById
-    ? (args._.slice(3).join(" ").trim() || undefined)
-    : isTypedByFlags
-      ? (args.brief ? String(args.brief).trim() : (args._.slice(2).join(" ").trim() || undefined))
-      : undefined;
-  if (isTypedById && !productId!.startsWith("prod_")) {
-    console.error(`❌ product_id must start with "prod_" (got: ${productId}).`);
+  let amount: number;
+  try {
+    amount = parseAmount(String(amountRaw));
+    if (amount <= 0) throw new Error("amount must be greater than 0");
+    if (amount > 50) throw new Error("amount must be 50 USDC or less");
+  } catch (e: any) {
+    console.error(`❌ ${e.message}`);
     process.exit(1);
   }
-  if ((isTypedById || isTypedByFlags) && briefOverride && briefOverride.length > 500) {
-    console.error(`❌ Description too long (${briefOverride.length} chars). Max 500 characters.`);
-    process.exit(1);
-  }
+
+  const isTyped = !!svcFlag && !!typeFlag;
 
   const networkConfig = await setupNetwork(args);
   const hireEndpoint = `${baseURL}/${username}/a2a`;
@@ -528,36 +495,21 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
   console.log(`\n🎯 Hiring @${username}...`);
   console.log(`   API: ${hireEndpoint}`);
   console.log(`   Network: ${networkConfig.network.charAt(0).toUpperCase() + networkConfig.network.slice(1)}`);
-  if (isTypedById) {
-    console.log(`   Product: ${productId}`);
-    if (briefOverride) console.log(`   Task brief: ${briefOverride}`);
-    console.log(`   💰 Price comes from the product`);
-  } else if (isTypedByFlags) {
+  console.log(`   Task: ${description}`);
+  console.log(`   💰 Amount: $${amount} USDC`);
+  if (isTyped) {
     console.log(`   Service: ${svcFlag}`);
     console.log(`   Product type: ${typeFlag}`);
-    if (briefOverride) console.log(`   Task brief: ${briefOverride}`);
-    console.log(`   💰 Price comes from the matching product`);
   } else {
     console.log(`   Format: open (custom task)`);
-    console.log(`   Task: ${customDescription}`);
-    console.log(`   💰 Amount: $${openAmount} USDC`);
   }
   console.log();
 
-  // Build the JSON-RPC params for the appropriate hire shape
-  const buildHireParams = (): Record<string, unknown> => {
-    if (isTypedById) {
-      return { product_id: productId, ...(briefOverride && { description: briefOverride }) };
-    }
-    if (isTypedByFlags) {
-      return {
-        service: svcFlag,
-        product_type: typeFlag,
-        ...(briefOverride && { description: briefOverride }),
-      };
-    }
-    return { description: customDescription, amount: openAmount };
-  };
+  const buildHireParams = (): Record<string, unknown> => ({
+    description,
+    amount,
+    ...(isTyped && { service: svcFlag, product_type: typeFlag }),
+  });
 
   // MPP flow (Stellar, Tempo)
   if (networkConfig.network === "stellar" || networkConfig.network === "tempo" || networkConfig.network === "monad") {
@@ -667,16 +619,14 @@ const subcommand = args._[0];
 if (!subcommand) {
   console.error("Usage: moltycash human <tip|hire>");
   console.error("\nSubcommands:");
-  console.error("  tip  <username> <amount>                                                  Tip USDC");
-  console.error('  hire <username> --service <svc> --product-type <type> ["brief"]           Typed (readable)');
-  console.error('  hire <username> <product_id> ["brief"]                                    Typed (by id)');
-  console.error('  hire <username> --custom "<description>" --amount <USD>                   Open-format');
+  console.error("  tip  <username> <amount>                                                                       Tip USDC");
+  console.error('  hire <username> "<description>" --amount <USD> [--service <svc> --product-type <type>]         Hire someone');
   console.error("\nExamples:");
   console.error("  moltycash human tip 0xmesuthere 50¢");
-  console.error("  moltycash human hire 0xmesuthere --service x_paid_promotion --product-type x_article");
-  console.error("  moltycash human hire 0xmesuthere prod_xyz123");
-  console.error('  moltycash human hire 0xmesuthere --custom "Make a 5min Loom" --amount 30');
-  console.error("\nDiscover available products via the user's agent card:");
+  console.error('  moltycash human hire 0xmesuthere "Make a 5min Loom" --amount 30');
+  console.error('  moltycash human hire 0xmesuthere "Write an X article on x402" --amount 7 --service x_paid_promotion --product-type x_article');
+  console.error("\n--service and --product-type are optional but must be passed together. Without them, the hire is open-format (custom).");
+  console.error("Discover available products via the user's agent card:");
   console.error("  curl https://api.molty.cash/<username>/.well-known/agent-card.json");
   process.exit(1);
 }
