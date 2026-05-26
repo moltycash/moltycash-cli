@@ -354,7 +354,7 @@ async function handleTip(args: minimist.ParsedArgs): Promise<void> {
     ...(identityToken && { "X-Molty-Identity-Token": identityToken }),
   };
 
-  const tipParams = { amount };
+  const tipParams: Record<string, unknown> = { amount };
 
   // Phase 1: Get payment requirements
   console.log("💳 Phase 1: Requesting payment requirements...");
@@ -446,36 +446,27 @@ async function handleTip(args: minimist.ParsedArgs): Promise<void> {
 
 async function handleHire(args: minimist.ParsedArgs): Promise<void> {
   if (args._.length < 3) {
-    console.error('Usage: moltycash human hire <username> "<description>" [--amount <USDC>] [--service <service>] [--network <network>]');
+    console.error('Usage: moltycash human hire <username> <product_id> ["<description>"] [--network <network>]');
     console.error("\nExamples:");
-    console.error('  moltycash human hire 0xmesuthere "Write an X Article about molty.cash"');
-    console.error('  moltycash human hire 0xmesuthere "Make a TikTok about our product" --service tiktok_paid_promotion');
-    console.error("\nPrice is fixed per service. Check the user's profile for available services and prices.");
+    console.error('  moltycash human hire 0xmesuthere prod_xyz123');
+    console.error('  moltycash human hire 0xmesuthere prod_xyz123 "Custom task brief override"');
+    console.error("\nThe price comes from the product itself. Discover available products via the user's agent card:");
+    console.error('  curl https://api.molty.cash/<username>/.well-known/agent-card.json');
+    console.error("Each user lists their published products (id, type, name, price) under the hire skill.");
     process.exit(1);
   }
 
   const username = String(args._[1]);
-  const description = args._.slice(2).join(" ").trim();
-  const service = args.service ? String(args.service).toLowerCase() : undefined;
+  const productId = String(args._[2]).trim();
+  const description = args._.slice(3).join(" ").trim() || undefined;
 
-  let requestedAmount: number | undefined;
-  if (args.amount !== undefined) {
-    try {
-      requestedAmount = parseAmount(String(args.amount));
-      if (requestedAmount <= 0) throw new Error("Amount must be greater than 0");
-      if (requestedAmount > 10) throw new Error("Amount must be 10 USDC or less");
-    } catch (e: any) {
-      console.error(`❌ ${e.message}`);
-      process.exit(1);
-    }
-  }
-
-  if (!description) {
-    console.error("❌ Description is required");
+  if (!productId.startsWith("prod_")) {
+    console.error(`❌ product_id must start with "prod_" (got: ${productId}).`);
+    console.error("Fetch available products from the user's agent card — see usage above.");
     process.exit(1);
   }
 
-  if (description.length > 500) {
+  if (description && description.length > 500) {
     console.error(`❌ Description too long (${description.length} chars). Max 500 characters.`);
     process.exit(1);
   }
@@ -486,13 +477,9 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
   console.log(`\n🎯 Hiring @${username}...`);
   console.log(`   API: ${hireEndpoint}`);
   console.log(`   Network: ${networkConfig.network.charAt(0).toUpperCase() + networkConfig.network.slice(1)}`);
-  if (service) console.log(`   Service: ${service}`);
-  console.log(`   Task: ${description}`);
-  if (requestedAmount !== undefined) {
-    console.log(`   💰 Requested: $${requestedAmount} USDC (API enforces per-service minimum)`);
-  } else {
-    console.log(`   💰 Price determined by service`);
-  }
+  console.log(`   Product: ${productId}`);
+  if (description) console.log(`   Task brief: ${description}`);
+  console.log(`   💰 Price comes from the product`);
   console.log();
 
   // MPP flow (Stellar, Tempo)
@@ -501,7 +488,7 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
       networkConfig.mppFetch,
       hireEndpoint,
       "hire",
-      { description, ...(service && { service }), ...(requestedAmount !== undefined && { amount: requestedAmount }) },
+      { product_id: productId, ...(description && { description }) },
     );
 
     console.log(`✅ @${result.to || username} hired for ${result.amount} USDC`);
@@ -519,9 +506,8 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
     ...(identityToken && { "X-Molty-Identity-Token": identityToken }),
   };
 
-  const hireParams: Record<string, unknown> = { description };
-  if (service) hireParams.service = service;
-  if (requestedAmount !== undefined) hireParams.amount = requestedAmount;
+  const hireParams: Record<string, unknown> = { product_id: productId };
+  if (description) hireParams.description = description;
 
   // Phase 1: Get payment requirements
   console.log("💳 Phase 1: Requesting payment requirements...");
@@ -605,11 +591,14 @@ const subcommand = args._[0];
 if (!subcommand) {
   console.error("Usage: moltycash human <tip|hire>");
   console.error("\nSubcommands:");
-  console.error("  tip <username> <amount>                          Tip USDC to a user");
-  console.error('  hire <username> "<description>" --amount <USDC>  Hire a user for a task');
+  console.error("  tip  <username> <amount>                         Tip USDC to a user");
+  console.error('  hire <username> <product_id> ["description"]    Hire a user for one of their published products');
   console.error("\nExamples:");
   console.error("  moltycash human tip 0xmesuthere 50¢");
-  console.error('  moltycash human hire 0xmesuthere "Write an X Article about molty.cash" --amount 1');
+  console.error("  moltycash human hire 0xmesuthere prod_xyz123");
+  console.error('  moltycash human hire 0xmesuthere prod_xyz123 "Custom task brief"');
+  console.error("\nDiscover available products via the user's agent card:");
+  console.error("  curl https://api.molty.cash/<username>/.well-known/agent-card.json");
   process.exit(1);
 }
 

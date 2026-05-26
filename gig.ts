@@ -109,6 +109,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   const description = args._.slice(1).join(" ").trim();
   const verifiedHumansOnly = !!args["verified-humans-only"];
   const service = args.service ? String(args.service).toLowerCase() : undefined;
+  const productType = args["product-type"] ? String(args["product-type"]).toLowerCase() : undefined;
   const location = args.location ? String(args.location) : undefined;
 
   if (location) {
@@ -127,13 +128,17 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
     }
   }
 
-  if (!perGigUsdAmount || !description) {
-    console.error('Usage: moltycash gig create "<description>" --price <USDC> [--quantity <n>] [--service <service>] [--verified-humans-only] [--location <google_maps_url>]');
+  if (!perGigUsdAmount || !description || !service || !productType) {
+    console.error('Usage: moltycash gig create "<description>" --price <USDC> --service <service> --product-type <type> [--quantity <n>] [--verified-humans-only] [--location <google_maps_url>]');
+    console.error('\nRequired:');
+    console.error('  --price          USDC price per completed task');
+    console.error('  --service        Platform: x_paid_promotion | instagram_paid_promotion | tiktok_paid_promotion | reddit_paid_promotion | substack_paid_promotion | youtube_paid_promotion');
+    console.error('  --product-type   Format on that platform — must match service. e.g. x_post, x_thread, x_quote, x_short_video, x_long_video, x_article, x_reply, instagram_post, tiktok_video, reddit_post, substack_post, youtube_video');
     console.error('\nExamples:');
-    console.error('  moltycash gig create "Review my landing page" --price 1');
-    console.error('  moltycash gig create "Post about us" --price 0.5 --service x_paid_promotion');
-    console.error('  moltycash gig create "Verified humans only" --price 0.25 --verified-humans-only');
-    console.error('  moltycash gig create "Eat here, post receipt on X" --price 1 --location "https://maps.app.goo.gl/..."');
+    console.error('  moltycash gig create "Post about us" --price 0.5 --service x_paid_promotion --product-type x_post');
+    console.error('  moltycash gig create "Make a TikTok" --price 3 --service tiktok_paid_promotion --product-type tiktok_video --quantity 5');
+    console.error('  moltycash gig create "Eat here, post receipt on X" --price 1 --service x_paid_promotion --product-type x_post --location "https://maps.app.goo.gl/..."');
+    console.error('\nEarners only see / can pick gigs whose product_type matches an enabled product they offer.');
     process.exit(1);
   }
 
@@ -328,6 +333,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   console.log(`\n\ud83c\udfaf Creating gig: ${totalSlots} slot(s) at ${perPostPrice} USDC each (total: ${amount} USDC)`);
   console.log(`   Network: ${networkName}`);
   console.log(`   Service: ${service}`);
+  console.log(`   Product type: ${productType}`);
   console.log(`   Description: ${description}`);
   if (verifiedHumansOnly) console.log(`   Verified humans only: yes`);
   if (location) console.log(`   Location: ${location}`);
@@ -344,7 +350,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
       jsonrpc: "2.0",
       id: 1,
       method: "gig.create",
-      params: { price: perPostPrice, quantity: totalSlots, description, service, ...eligibilityParams },
+      params: { price: perPostPrice, quantity: totalSlots, description, service, product_type: productType, ...eligibilityParams },
     });
 
     const response = await mppFetch(`${baseURL}/a2a`, {
@@ -371,7 +377,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   console.log("\ud83d\udcb3 Phase 1: Requesting payment requirements...");
   const phase1Result = await a2aCall(
     "gig.create",
-    { price: perPostPrice, quantity: totalSlots, description, service, ...eligibilityParams },
+    { price: perPostPrice, quantity: totalSlots, description, service, product_type: productType, ...eligibilityParams },
     { "X-A2A-Extensions": X402_EXTENSION_URI },
   );
 
@@ -396,6 +402,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
       quantity: totalSlots,
       description,
       service,
+      product_type: productType,
       ...eligibilityParams,
       taskId: phase1Result.id,
       payment: signedPayment,
