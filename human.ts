@@ -9,6 +9,8 @@ import { registerExactSvmScheme } from "@x402/svm/exact/client";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import bs58 from "bs58";
 import { Mppx } from "@stellar/mpp/charge/client";
+import { captureSessionFromResult } from "./lib/session.js";
+import { buildExplorerUrl as sharedBuildExplorerUrl } from "./lib/explorer.js";
 import { stellar } from "@stellar/mpp/charge/client";
 import { tempo } from "mppx/client";
 import { monad } from "@monad-crypto/mpp/client";
@@ -233,17 +235,9 @@ async function setupNetwork(args: minimist.ParsedArgs): Promise<NetworkConfig> {
 
 // ─── Explorer URL Helper ─────────────────────────────────────
 
-function buildExplorerUrl(txHash?: string, network?: string): string | undefined {
-  if (!txHash) return undefined;
-  if (network === 'solana') return `https://solscan.io/tx/${txHash}`;
-  if (network === 'tempo') return `https://explore.tempo.xyz/receipt/${txHash}`;
-  if (network === 'stellar') return `https://stellar.expert/explorer/public/tx/${txHash}`;
-  if (network === 'monad') return `https://monadscan.com/tx/${txHash}`;
-  if (network === 'worldchain') return `https://worldscan.org/tx/${txHash}`;
-  if (network === 'skale') return `https://skale-base-explorer.skalenodes.com/tx/${txHash}`;
-  if (network === 'base' || txHash.startsWith('0x')) return `https://basescan.org/tx/${txHash}`;
-  return undefined;
-}
+// Delegate to the shared helper in ./lib/explorer.ts. Kept as a thin wrapper so
+// existing references in this file continue to compile.
+const buildExplorerUrl = sharedBuildExplorerUrl;
 
 // ─── MPP Helper ─────────────────────────────────────────────
 
@@ -343,6 +337,8 @@ async function handleTip(args: minimist.ParsedArgs): Promise<void> {
     const explorerUrl = result.transaction?.explorer || buildExplorerUrl(result.transaction_hash, result.network);
     if (explorerUrl) console.log(`🔗 ${explorerUrl}`);
     if (result.receipt) console.log(`📄 ${result.receipt}`);
+    captureSessionFromResult(result);
+    if (result.session_token) console.log(`🔑 Session token cached — reward.balance / reward.claim ready for 24h`);
     return;
   }
 
@@ -397,6 +393,7 @@ async function handleTip(args: minimist.ParsedArgs): Promise<void> {
   }
 
   const result = phase2Response.data.result;
+  captureSessionFromResult(result);
 
   // Try artifacts first
   const artifacts = result.artifacts || [];
@@ -408,6 +405,7 @@ async function handleTip(args: minimist.ParsedArgs): Promise<void> {
         const explorerUrl = data.transaction?.explorer || buildExplorerUrl(data.transaction_hash, data.network);
         if (explorerUrl) console.log(`🔗 ${explorerUrl}`);
         if (data.receipt) console.log(`📄 ${data.receipt}`);
+        if (data.session_token) console.log(`🔑 Session token cached — reward.balance / reward.claim ready for 24h`);
         return;
       } catch {
         // ignore parse errors
@@ -421,6 +419,7 @@ async function handleTip(args: minimist.ParsedArgs): Promise<void> {
     const explorerUrl = result.transaction?.explorer || buildExplorerUrl(result.transaction_hash, result.network);
     if (explorerUrl) console.log(`🔗 ${explorerUrl}`);
     if (result.receipt) console.log(`📄 ${result.receipt}`);
+    if (result.session_token) console.log(`🔑 Session token cached — reward.balance / reward.claim ready for 24h`);
     return;
   }
 

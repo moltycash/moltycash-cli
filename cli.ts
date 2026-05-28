@@ -33,8 +33,10 @@ function showHelp() {
 USDC payments, hiring, and gigs via molty.cash API
 
 COMMANDS:
-  human <tip|hire>
-  gig   <subcommand>
+  human   <tip|hire>
+  gig     <subcommand>
+  session <create|status>
+  reward  <balance|claim>
 
 HUMAN SUBCOMMANDS:
   human tip <username> <amount> [--network <base|solana|stellar|tempo|monad|worldchain|skale>]
@@ -55,6 +57,14 @@ GIG SUBCOMMANDS:
 HUMAN TIP EXAMPLES:
   moltycash human tip 0xmesuthere 50¢
   moltycash human tip 0xmesuthere 100¢ --network solana
+
+SESSION SUBCOMMANDS (1¢ x402 mints a 24h wallet session token):
+  session create                                 Pay 1¢ to mint a session token (cached locally)
+  session status                                 Show cached session for current wallet
+
+REWARD SUBCOMMANDS (require an active session):
+  reward balance                                 Show $moltycash balance + tier info
+  reward claim --destination <0x...>             Claim all $moltycash to a Base EVM address
 
 HUMAN HIRE EXAMPLES:
   moltycash human hire 0xmesuthere "Write an X Article about molty.cash"
@@ -133,6 +143,12 @@ function main() {
   } else if (command === "gig") {
     const commandArgs = args.slice(1);
     runCommand("gig.js", commandArgs);
+  } else if (command === "session") {
+    const commandArgs = args.slice(1);
+    runCommand("session.js", commandArgs);
+  } else if (command === "reward") {
+    const commandArgs = args.slice(1);
+    runCommand("reward.js", commandArgs);
   } else {
     console.error(`\n❌ Unknown command: ${command}\n`);
     console.error(`Run 'moltycash --help' to see available commands.\n`);
