@@ -86,13 +86,19 @@ async function handleBalance(): Promise<void> {
         const u = result.balance_usd;
         console.log(`USD value (≈):       ${u >= 0.01 ? `$${u.toFixed(2)}` : '< $0.01'}`);
     }
-    console.log(`Current tier:        index ${result.current_tier_index ?? '-'} (rate ${((result.current_rate ?? 0) * 100).toFixed(0)}%)`);
+    console.log(`Current tier:        ${result.current_tier_label || 'Starter'} (${result.current_percentage ?? 0}% rebate)`);
     if (result.next_tier_min_tokens) {
-        console.log(`Next tier at:        ${result.next_tier_min_tokens.toLocaleString()} tokens (rate ${(result.next_tier_rate * 100).toFixed(0)}%)`);
+        console.log(`Next tier at:        ${result.next_tier_min_tokens.toLocaleString()} tokens (${result.next_tier_percentage}% rebate)`);
     }
-    console.log(`Claim threshold:     ${result.claim_threshold_tokens.toLocaleString()} tokens OR $${result.claim_threshold_usd.toLocaleString()} USD`);
-    console.log(`Exit tax on claim:   $${result.exit_tax_flat_usd?.toFixed(2) || '1.00'} USDC (flat)`);
-    console.log(`Claimable now:       ${result.claimable ? 'YES' : 'no — below threshold'}`);
+    if (result.tier_jumps) {
+        for (const [label, jump] of Object.entries(result.tier_jumps as Record<string, any>)) {
+            console.log(`To reach ${label.padEnd(7)}: ${jump.required_moltycash_tokens.toLocaleString()} tokens — pay ~$${jump.usdc_needed.toFixed(2)} USDC → ${jump.reward_percentage}% rebate`);
+        }
+    }
+    if (result.spot_price_usd) console.log(`Spot price:          $${result.spot_price_usd.toExponential(4)} per token`);
+    const exitPct = ((result.exit_tax_percent ?? 0.01) * 100).toFixed(1);
+    console.log(`Exit tax on claim:   ${exitPct}% of claim value (min $${(result.exit_tax_min_usd ?? 0.02).toFixed(2)} USDC)`);
+    console.log(`Claimable now:       ${result.claimable ? 'YES' : 'no — empty balance'}`);
     if (result.rewards_paused) console.log(`⚠️  Rewards are currently paused.`);
 }
 
