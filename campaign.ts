@@ -121,8 +121,10 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
         console.error("  --max <cap>                 max payout per submission");
         console.error("  --submissions <n>           prepaid submission slots to buy");
         console.error("  --model <snapshot|accrual>  payout model (default snapshot)");
-        console.error("  --interval <hours>          accrual+auto: hours between view reads");
+        console.error("  --interval <hours>          accrual+auto: hours between view reads (min 1)");
         console.error("  --days <n>                  accrual: tracking window in days");
+        console.error("  --hours <n>                 accrual: tracking window in HOURS (overrides --days; e.g. 8)");
+        console.error("  --proportional              accrual: pay on the exact new-view delta each interval (default: whole 1k blocks)");
         console.error("  --mode <auto|agent>         auto=moltycash reads X views; agent=your agent reports views (default auto)");
         console.error("  --releaser <wallet>         agent mode: wallet allowed to release besides you");
         process.exit(1);
@@ -138,8 +140,11 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
         release_mode: (args.mode as string) || "auto",
         description,
         ...(args.ticker && { ticker: String(args.ticker) }),
+        ...(args.hold !== undefined && { settle_hold_hours: Number(args.hold) }),
         ...(args.interval && { accrual_interval_hours: Number(args.interval) }),
         ...(args.days && { accrual_duration_days: Number(args.days) }),
+        ...(args.hours && { accrual_duration_hours: Number(args.hours) }),
+        ...(args.proportional && { accrual_mode: "proportional" }),
         ...(args.releaser && { releaser: String(args.releaser) }),
     };
 
