@@ -112,14 +112,14 @@ function requireSession(): { session_token: string; session_wallet: string } {
 
 async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
     const description = (args.description as string) || args._.slice(1).join(" ");
-    if (!args.token || !args.cpm || !args.max || !args.submissions || !description) {
-        console.error("Usage: moltycash campaign create --token <addr> --cpm <rate> --max <cap> --submissions <n> [options] \"<description>\"");
+    if (!args.token || !args.cpm || !args.max || !args.credits || !description) {
+        console.error("Usage: moltycash campaign create --token <addr> --cpm <rate> --max <cap> --credits <n> [options] \"<description>\"");
         console.error("  --chain <solana|base>       payout chain (default solana)");
         console.error("  --token <addr>              payout token: SPL mint (solana) or ERC-20 0x (base)");
         console.error("  --ticker <SYM>              token ticker (must be mentioned in posts, auto mode)");
         console.error("  --cpm <rate>                payout tokens per 1,000 views");
         console.error("  --max <cap>                 max payout per submission");
-        console.error("  --submissions <n>           prepaid submission slots to buy");
+        console.error("  --credits <n>               prepaid credits to buy (one per earner submission)");
         console.error("  --model <snapshot|accrual>  payout model (default snapshot)");
         console.error("  --interval <hours>          accrual+auto: hours between view reads (min 1)");
         console.error("  --days <n>                  accrual: tracking window in days");
@@ -135,7 +135,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
         token_contract: String(args.token),
         cpm_rate: Number(args.cpm),
         max_payout_per_submission: Number(args.max),
-        submissions: Number(args.submissions),
+        credits: Number(args.credits),
         payout_model: (args.model as string) || "snapshot",
         release_mode: (args.mode as string) || "auto",
         description,
@@ -154,7 +154,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
     console.log(`\n✅ Campaign created: ${result.campaign_id}`);
     console.log(`   Pays ${result.cpm_rate} ${result.ticker || "token"} / 1,000 views (max ${result.max_payout_per_submission}/post)`);
     console.log(`   Payout chain: ${result.payout_chain}`);
-    console.log(`   Prepaid slots: ${result.submission_credits}`);
+    console.log(`   Prepaid credits: ${result.credits}`);
     console.log(`\n💰 Fund the campaign wallet with the payout token:`);
     console.log(`   ${result.wallet_address}`);
     console.log(`\n🔗 https://molty.cash/campaign/${result.campaign_id}`);
@@ -162,13 +162,13 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
 
 async function handleTopup(args: minimist.ParsedArgs): Promise<void> {
     const campaignId = args._[1] as string;
-    if (!campaignId || !args.submissions) {
-        console.error("Usage: moltycash campaign topup <campaign_id> --submissions <n>");
+    if (!campaignId || !args.credits) {
+        console.error("Usage: moltycash campaign topup <campaign_id> --credits <n>");
         process.exit(1);
     }
     console.log(`\n➕ Topping up ${campaignId}...\n`);
-    const result = await paidCall("campaign.topup", { campaign_id: campaignId, submissions: Number(args.submissions) });
-    console.log(`✅ Added ${result.submission_credits_added} slot(s). Total: ${result.submission_credits_total}.`);
+    const result = await paidCall("campaign.topup", { campaign_id: campaignId, credits: Number(args.credits) });
+    console.log(`✅ Added ${result.credits_added} credit(s). Total: ${result.credits_total}.`);
 }
 
 async function handleStatus(args: minimist.ParsedArgs): Promise<void> {
@@ -182,7 +182,7 @@ async function handleStatus(args: minimist.ParsedArgs): Promise<void> {
     console.log(`Status:            ${r.status} (${r.accepting_submissions ? "accepting submissions" : "not accepting"})`);
     console.log(`Payout:            ${r.cpm_rate} ${r.ticker || "token"} / 1,000 views (max ${r.max_payout_per_submission}/post) on ${r.payout_chain}`);
     console.log(`Wallet balance:    ${r.token_balance} (${r.available_token_amount} available, ${r.committed_token_amount} committed)`);
-    console.log(`Submission credits: ${r.submission_credits_available} left (${r.submission_credits_used} paid, ${r.submission_credits_reserved} pending)`);
+    console.log(`Credits:           ${r.credits_available} left (${r.credits_used} paid, ${r.credits_reserved} pending)`);
     console.log(`Submissions:       ${r.submissions_count}`);
     console.log(`Wallet:            ${r.wallet_address}`);
 }
