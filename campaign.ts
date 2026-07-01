@@ -226,6 +226,22 @@ async function handleRelease(args: minimist.ParsedArgs): Promise<void> {
     if (result.payout_txn_hash) console.log(`   Payout tx: ${result.payout_txn_hash}`);
 }
 
+async function handleClose(args: minimist.ParsedArgs): Promise<void> {
+    const campaignId = args._[1] as string;
+    const to = args.to as string | undefined;
+    if (!campaignId || !to) {
+        console.error("Usage: moltycash campaign close <campaign_id> --to <refund_address>");
+        console.error("  Rejects in-flight submissions, sweeps the wallet balance to --to, and closes the campaign.");
+        process.exit(1);
+    }
+    const session = requireSession();
+    const result = await a2aSession("campaign.close", { campaign_id: campaignId, refund_address: String(to) }, session.session_token);
+    console.log(`✅ ${result.message || result.status}`);
+    if (result.rejected_submissions) console.log(`   Rejected ${result.rejected_submissions} in-flight submission(s).`);
+    if (result.refund_amount) console.log(`   Refunded ${result.refund_amount} → ${result.refund_to}`);
+    if (result.refund_txn_hash) console.log(`   Refund tx: ${result.refund_txn_hash}`);
+}
+
 // ── earner commands (identity token) ─────────────────────────────────────────
 
 async function handleList(): Promise<void> {
@@ -261,7 +277,11 @@ async function handleSubmit(args: minimist.ParsedArgs): Promise<void> {
 
 // ── dispatch ──────────────────────────────────────────────────────────────
 
-const args = minimist(process.argv.slice(2));
+// Force string parsing for flags that carry addresses/hex/text — otherwise minimist
+// coerces values like a 0x… token address into a (lossy) hex Number.
+const args = minimist(process.argv.slice(2), {
+    string: ["chain", "token", "ticker", "model", "mode", "releaser", "description", "reason", "to"],
+});
 const subcommand = args._[0];
 
 const earnerCommands = ["list", "submit"];
@@ -290,6 +310,9 @@ async function main(): Promise<void> {
             case "release":
                 await handleRelease(args);
                 break;
+            case "close":
+                await handleClose(args);
+                break;
             case "list":
                 await handleList();
                 break;
@@ -297,7 +320,7 @@ async function main(): Promise<void> {
                 await handleSubmit(args);
                 break;
             default:
-                console.error("Usage: moltycash campaign <create|topup|status|review|release|list|submit>");
+                console.error("Usage: moltycash campaign <create|topup|status|review|release|close|list|submit>");
                 process.exit(1);
         }
     } catch (error: any) {
