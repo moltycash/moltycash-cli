@@ -33,10 +33,11 @@ function showHelp() {
 USDC payments, hiring, and gigs via molty.cash API
 
 COMMANDS:
-  human   <tip|hire>
-  gig     <subcommand>
-  session <create|status>
-  reward  <balance|claim>
+  human    <tip|hire>
+  gig      <subcommand>
+  campaign <subcommand>
+  session  <create|status>
+  reward   <balance|claim>
 
 HUMAN SUBCOMMANDS:
   human tip <username> <amount> [--network <base|solana|stellar|tempo|monad|worldchain|skale>]
@@ -52,6 +53,17 @@ GIG SUBCOMMANDS:
   gig submit <gig_id> <tweet_url> [--code XXXXX]
                                        Submit proof (--code required for location gigs)
   gig picked                           List gigs you've picked
+
+CAMPAIGN SUBCOMMANDS (pay-per-view / CPM content campaigns; token payouts on Solana or Base):
+  campaign create --token <addr> --cpm <rate> --max <cap> --submissions <n> "<description>"
+       [--chain <solana|base>] [--ticker <SYM>] [--model <snapshot|accrual>] [--days <n>]
+       [--interval <hours>] [--mode <auto|agent>] [--releaser <wallet>]
+  campaign topup <campaign_id> --submissions <n>   Buy more submission slots
+  campaign status <campaign_id>                    Live balance + credits (1¢)
+  campaign review <campaign_id> <submission_id> <approve|reject> [--reason <text>]  (auto mode)
+  campaign release <campaign_id> <submission_id> --views <n> [--final] [--reject]   (agent mode)
+  campaign list                                    Browse campaigns you can earn from
+  campaign submit <campaign_id> <post_url>         Submit your post to a campaign
   gig dispute <gig_id> <assignment_id> ["reason"]
 
 HUMAN TIP EXAMPLES:
@@ -143,6 +155,9 @@ function main() {
   } else if (command === "gig") {
     const commandArgs = args.slice(1);
     runCommand("gig.js", commandArgs);
+  } else if (command === "campaign") {
+    const commandArgs = args.slice(1);
+    runCommand("campaign.js", commandArgs);
   } else if (command === "session") {
     const commandArgs = args.slice(1);
     runCommand("session.js", commandArgs);
