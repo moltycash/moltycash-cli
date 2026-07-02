@@ -112,14 +112,14 @@ function requireSession(): { session_token: string; session_wallet: string } {
 
 async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
     const description = (args.description as string) || args._.slice(1).join(" ");
-    if (!args.cpm || !args.max || !args.credits || !description) {
-        console.error("Usage: moltycash campaign create --cpm <rate> --max <cap> --credits <n> [options] \"<description>\"");
+    if (!args.cpm || !args.max || !description) {
+        console.error("Usage: moltycash campaign create --cpm <rate> --max <cap> [options] \"<description>\"");
         console.error("  --chain <solana|base>       payout chain (default solana)");
         console.error("  --token <addr>              payout token: SPL mint (solana) or ERC-20 0x (base). Default: USDC on the payout chain");
         console.error("  --ticker <SYM>              token ticker (must be mentioned in posts, auto mode; not required for USDC)");
         console.error("  --cpm <rate>                payout tokens per 1,000 views");
         console.error("  --max <cap>                 max payout per submission (per-post cap)");
-        console.error("  --credits <n>               prepaid credits to buy (one per earner submission)");
+        console.error("  --credits <n>               prepaid submission slots (optional; a default grant is used if omitted). Campaign pauses when they run out; top up to add more");
         console.error("  --window <days>             daily-payout tracking window in days (default 7, 1–30)");
         console.error("  --mode <auto|agent>         auto=moltycash reads X views; agent=your agent reports views (default auto)");
         console.error("  --releaser <wallet>         agent mode: wallet allowed to release besides you");
@@ -135,7 +135,8 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
         ...(args.token && { token_contract: String(args.token) }),
         cpm_rate: Number(args.cpm),
         max_payout_per_submission: Number(args.max),
-        credits: Number(args.credits),
+        // Omit credits when not supplied — the server grants a default slot count.
+        ...(args.credits !== undefined && { credits: Number(args.credits) }),
         release_mode: (args.mode as string) || "auto",
         description,
         ...(args.ticker && { ticker: String(args.ticker) }),
