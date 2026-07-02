@@ -11,6 +11,21 @@ const identityToken = process.env.MOLTY_IDENTITY_TOKEN as string | undefined;
 
 let rpcId = 1;
 
+// Display symbol for a campaign's PAYOUT token. `ticker` is the required-mention string
+// (e.g. MOLTYCASH) and is NOT necessarily the payout token — payouts default to USDC. So the
+// label must reflect token_contract: USDC addresses → "USDC", else the provided ticker.
+const USDC_ADDRESSES = new Set<string>([
+    "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", // Base mainnet
+    "0x036cbd53842c5426634e7929541ec2318f3dcf7e", // Base sepolia
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // Solana mainnet
+    "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU", // Solana devnet
+]);
+function payoutSymbol(tokenContract?: string | null, ticker?: string | null): string {
+    const t = (tokenContract || "").trim();
+    if (t && (USDC_ADDRESSES.has(t.toLowerCase()) || USDC_ADDRESSES.has(t))) return "USDC";
+    return ticker || "token";
+}
+
 // ── transports ────────────────────────────────────────────────────────────
 
 /** A2A JSON-RPC with the x402 extension header (used for the two-phase paid flow). */
@@ -149,7 +164,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
     const result = await paidCall("campaign.create", params);
 
     console.log(`\n✅ Campaign created: ${result.campaign_id}`);
-    console.log(`   Pays ${result.cpm_rate} ${result.ticker || "token"} / 1,000 views (max ${result.max_payout_per_submission}/post)`);
+    console.log(`   Pays ${result.cpm_rate} ${payoutSymbol(result.token_contract, result.ticker)} / 1,000 views (max ${result.max_payout_per_submission}/post)`);
     console.log(`   Daily payouts: base ~2h after posting, then daily top-ups for ${result.window_days ?? 7} day(s)`);
     console.log(`   Payout chain: ${result.payout_chain}`);
     console.log(`   Prepaid credits: ${result.credits}`);
@@ -178,7 +193,7 @@ async function handleStatus(args: minimist.ParsedArgs): Promise<void> {
     console.log(`\n📊 Reading status for ${campaignId} (1¢)...\n`);
     const r = await paidCall("campaign.status", { campaign_id: campaignId });
     console.log(`Status:            ${r.status} (${r.accepting_submissions ? "accepting submissions" : "not accepting"})`);
-    console.log(`Payout:            ${r.cpm_rate} ${r.ticker || "token"} / 1,000 views (max ${r.max_payout_per_submission}/post) on ${r.payout_chain}`);
+    console.log(`Payout:            ${r.cpm_rate} ${payoutSymbol(r.token_contract, r.ticker)} / 1,000 views (max ${r.max_payout_per_submission}/post) on ${r.payout_chain}`);
     console.log(`Daily payouts:     base ~2h after posting, then daily top-ups for ${r.window_days ?? 7} day(s)`);
     console.log(`Wallet balance:    ${r.token_balance} (${r.available_token_amount} available, ${r.committed_token_amount} committed)`);
     console.log(`Credits:           ${r.credits_available} left (${r.credits_used} used of ${r.credits_total})`);
@@ -259,7 +274,7 @@ async function handleList(): Promise<void> {
     for (const c of campaigns) {
         console.log(`  🟢 ${c.campaign_id}`);
         console.log(`     ${c.description}`);
-        console.log(`     ${c.cpm_rate} ${c.ticker || "token"}/1k views (max ${c.max_payout_per_submission}) on ${c.payout_chain} — ${c.slots_available} slot(s)`);
+        console.log(`     ${c.cpm_rate} ${payoutSymbol(c.token_contract, c.ticker)}/1k views (max ${c.max_payout_per_submission}) on ${c.payout_chain}`);
         console.log();
     }
     console.log(`Use 'moltycash campaign submit <campaign_id> <post_url>' to submit.`);
@@ -276,7 +291,7 @@ async function handleSubmit(args: minimist.ParsedArgs): Promise<void> {
     const result = await a2aIdentity("campaign.submit", { campaign_id: campaignId, proof });
     console.log(`✅ ${result.message || result.status}`);
     console.log(`   Submission: ${result.submission_id}`);
-    console.log(`   Earn ${result.cpm_rate} ${result.payout_chain} token / 1,000 views (max ${result.max_payout_per_submission}).`);
+    console.log(`   Earn ${result.cpm_rate} per 1,000 views (max ${result.max_payout_per_submission}) on ${result.payout_chain}.`);
 }
 
 // ── dispatch ──────────────────────────────────────────────────────────────
