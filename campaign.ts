@@ -181,7 +181,7 @@ async function handleStatus(args: minimist.ParsedArgs): Promise<void> {
     console.log(`Payout:            ${r.cpm_rate} ${r.ticker || "token"} / 1,000 views (max ${r.max_payout_per_submission}/post) on ${r.payout_chain}`);
     console.log(`Daily payouts:     base ~2h after posting, then daily top-ups for ${r.window_days ?? 7} day(s)`);
     console.log(`Wallet balance:    ${r.token_balance} (${r.available_token_amount} available, ${r.committed_token_amount} committed)`);
-    console.log(`Credits:           ${r.credits_available} left (${r.credits_used} paid, ${r.credits_reserved} pending)`);
+    console.log(`Credits:           ${r.credits_available} left (${r.credits_used} used of ${r.credits_total})`);
     console.log(`Submissions:       ${r.submissions_count}`);
     console.log(`Wallet:            ${r.wallet_address}`);
 }
