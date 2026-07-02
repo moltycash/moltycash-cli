@@ -112,39 +112,35 @@ function requireSession(): { session_token: string; session_wallet: string } {
 
 async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
     const description = (args.description as string) || args._.slice(1).join(" ");
-    if (!args.token || !args.cpm || !args.max || !args.credits || !description) {
-        console.error("Usage: moltycash campaign create --token <addr> --cpm <rate> --max <cap> --credits <n> [options] \"<description>\"");
+    if (!args.cpm || !args.max || !args.credits || !description) {
+        console.error("Usage: moltycash campaign create --cpm <rate> --max <cap> --credits <n> [options] \"<description>\"");
         console.error("  --chain <solana|base>       payout chain (default solana)");
-        console.error("  --token <addr>              payout token: SPL mint (solana) or ERC-20 0x (base)");
-        console.error("  --ticker <SYM>              token ticker (must be mentioned in posts, auto mode)");
+        console.error("  --token <addr>              payout token: SPL mint (solana) or ERC-20 0x (base). Default: USDC on the payout chain");
+        console.error("  --ticker <SYM>              token ticker (must be mentioned in posts, auto mode; not required for USDC)");
         console.error("  --cpm <rate>                payout tokens per 1,000 views");
-        console.error("  --max <cap>                 max payout per submission");
+        console.error("  --max <cap>                 max payout per submission (per-post cap)");
         console.error("  --credits <n>               prepaid credits to buy (one per earner submission)");
-        console.error("  --model <snapshot|accrual>  payout model (default snapshot)");
-        console.error("  --interval <hours>          accrual+auto: hours between view reads (min 1)");
-        console.error("  --days <n>                  accrual: tracking window in days");
-        console.error("  --hours <n>                 accrual: tracking window in HOURS (overrides --days; e.g. 8)");
-        console.error("  --proportional              accrual: pay on the exact new-view delta each interval (default: whole 1k blocks)");
+        console.error("  --window <days>             daily-payout tracking window in days (default 7, 1–30)");
         console.error("  --mode <auto|agent>         auto=moltycash reads X views; agent=your agent reports views (default auto)");
         console.error("  --releaser <wallet>         agent mode: wallet allowed to release besides you");
+        console.error("");
+        console.error("  Daily payouts: guaranteed base payout ~2h after posting (owner reject window),");
+        console.error("  then daily top-ups on new views for --window days, each min(views×cpm/1000, cap).");
         process.exit(1);
     }
 
     const params: Record<string, unknown> = {
         payout_chain: (args.chain as string) || "solana",
-        token_contract: String(args.token),
+        // Omit token_contract when not supplied — the server defaults it to USDC on the payout chain.
+        ...(args.token && { token_contract: String(args.token) }),
         cpm_rate: Number(args.cpm),
         max_payout_per_submission: Number(args.max),
         credits: Number(args.credits),
-        payout_model: (args.model as string) || "snapshot",
         release_mode: (args.mode as string) || "auto",
         description,
         ...(args.ticker && { ticker: String(args.ticker) }),
-        ...(args.hold !== undefined && { settle_hold_hours: Number(args.hold) }),
-        ...(args.interval && { accrual_interval_hours: Number(args.interval) }),
-        ...(args.days && { accrual_duration_days: Number(args.days) }),
-        ...(args.hours && { accrual_duration_hours: Number(args.hours) }),
-        ...(args.proportional && { accrual_mode: "proportional" }),
+        // --window (preferred) or --days: daily-payout tracking window in days.
+        ...((args.window ?? args.days) !== undefined && { window_days: Number(args.window ?? args.days) }),
         ...(args.releaser && { releaser: String(args.releaser) }),
     };
 
@@ -153,6 +149,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
 
     console.log(`\n✅ Campaign created: ${result.campaign_id}`);
     console.log(`   Pays ${result.cpm_rate} ${result.ticker || "token"} / 1,000 views (max ${result.max_payout_per_submission}/post)`);
+    console.log(`   Daily payouts: base ~2h after posting, then daily top-ups for ${result.window_days ?? 7} day(s)`);
     console.log(`   Payout chain: ${result.payout_chain}`);
     console.log(`   Prepaid credits: ${result.credits}`);
     console.log(`\n💰 Fund the campaign wallet with the payout token:`);
@@ -181,6 +178,7 @@ async function handleStatus(args: minimist.ParsedArgs): Promise<void> {
     const r = await paidCall("campaign.status", { campaign_id: campaignId });
     console.log(`Status:            ${r.status} (${r.accepting_submissions ? "accepting submissions" : "not accepting"})`);
     console.log(`Payout:            ${r.cpm_rate} ${r.ticker || "token"} / 1,000 views (max ${r.max_payout_per_submission}/post) on ${r.payout_chain}`);
+    console.log(`Daily payouts:     base ~2h after posting, then daily top-ups for ${r.window_days ?? 7} day(s)`);
     console.log(`Wallet balance:    ${r.token_balance} (${r.available_token_amount} available, ${r.committed_token_amount} committed)`);
     console.log(`Credits:           ${r.credits_available} left (${r.credits_used} paid, ${r.credits_reserved} pending)`);
     console.log(`Submissions:       ${r.submissions_count}`);
@@ -285,7 +283,7 @@ async function handleSubmit(args: minimist.ParsedArgs): Promise<void> {
 // Force string parsing for flags that carry addresses/hex/text — otherwise minimist
 // coerces values like a 0x… token address into a (lossy) hex Number.
 const args = minimist(process.argv.slice(2), {
-    string: ["chain", "token", "ticker", "model", "mode", "releaser", "description", "reason", "to"],
+    string: ["chain", "token", "ticker", "mode", "releaser", "description", "reason", "to"],
 });
 const subcommand = args._[0];
 

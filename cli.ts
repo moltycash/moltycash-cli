@@ -54,11 +54,13 @@ GIG SUBCOMMANDS:
                                        Submit proof (--code required for location gigs)
   gig picked                           List gigs you've picked
 
-CAMPAIGN SUBCOMMANDS (pay-per-view / CPM content campaigns; token payouts on Solana or Base):
-  campaign create --token <addr> --cpm <rate> --max <cap> --submissions <n> "<description>"
-       [--chain <solana|base>] [--ticker <SYM>] [--model <snapshot|accrual>] [--days <n>]
-       [--interval <hours>] [--mode <auto|agent>] [--releaser <wallet>]
-  campaign topup <campaign_id> --submissions <n>   Buy more submission slots
+CAMPAIGN SUBCOMMANDS (pay-per-view / CPM content campaigns; daily payouts; token payouts on Solana or Base):
+  campaign create --cpm <rate> --max <cap> --credits <n> "<description>"
+       [--chain <solana|base>] [--token <addr>] [--ticker <SYM>] [--window <days>]
+       [--mode <auto|agent>] [--releaser <wallet>]
+       Daily payouts: guaranteed base payout ~2h after posting, then daily top-ups on
+       new views for --window days (default 7). --token defaults to USDC on the chain.
+  campaign topup <campaign_id> --credits <n>       Buy more submission credits
   campaign status <campaign_id>                    Live balance + credits (1¢)
   campaign review <campaign_id> <submission_id> <approve|reject> [--reason <text>]  (auto mode)
   campaign release <campaign_id> <submission_id> --views <n> [--final] [--reject]   (agent mode)
