@@ -132,7 +132,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
         console.error("  --chain <solana|base>       payout chain (default solana)");
         console.error("  --token <addr>              payout token: SPL mint (solana) or ERC-20 0x (base). Default: USDC on the payout chain");
         console.error("  --ticker <SYM>              token ticker (must be mentioned in posts, auto mode; not required for USDC)");
-        console.error("  --cpm <rate>                payout tokens per 1,000 views");
+        console.error("  --cpm <rate>                MAX payout tokens per 1,000 views (rate scales down with low engagement; min 25% of this)");
         console.error("  --max <cap>                 max payout per submission (per-post cap)");
         console.error("  --credits <n>               prepaid submission slots (optional; a default grant is used if omitted). Campaign pauses when they run out; top up to add more");
         console.error("  --window <days>             daily-payout tracking window in days (default 7, 1–30)");
