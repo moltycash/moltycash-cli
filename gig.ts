@@ -3,6 +3,7 @@ import minimist from "minimist";
 import axios from "axios";
 import { Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { readLatestSession } from "./lib/session.js";
 import { x402Client } from "@x402/core/client";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { registerExactSvmScheme } from "@x402/svm/exact/client";
@@ -568,12 +569,18 @@ async function handleReview(args: minimist.ParsedArgs): Promise<void> {
   if (reason) console.log(`   Reason: ${reason}`);
   console.log();
 
+  const session = readLatestSession();
+  if (!session) {
+    console.error("\u274c No active session. Run: moltycash session create");
+    process.exit(1);
+  }
+
   const result = await a2aCall("gig.review", {
     gig_id: gigId,
     assignment_id: assignmentId,
     action,
     ...(reason && { reason }),
-  });
+  }, { "X-Molty-Session-Token": session.session_token });
 
   console.log(`\u2705 Review submitted!`);
   console.log(`   Assignment: ${result.assignment_id}`);
