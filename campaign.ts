@@ -134,7 +134,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
         console.error("  --ticker <SYM>              token ticker (must be mentioned in posts, auto mode; not required for USDC)");
         console.error("  --cpm <rate>                MAX payout tokens per 1,000 views (rate scales down with low engagement; min 25% of this)");
         console.error("  --max <cap>                 max payout per submission (per-post cap)");
-        console.error("  --min-hold <amount>         require earners to hold at least this amount of the campaign token to submit (optional)");
+        console.error("  --min-hold <amount>         require earners to hold at least this amount of the campaign token to submit and receive each payout (default: $5 worth; pass 0 to disable)");
         console.error("  --min-followers <n>         require earners to have at least N X followers to submit (optional)");
         console.error("  --min-age <days>            require earners' X account to be at least N days old (optional)");
         console.error("  --min-views <n>             minimum views a post must reach before payout fires; does not block submission (optional)");
@@ -162,7 +162,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
         // --window (preferred) or --days: daily-payout tracking window in days.
         ...((args.window ?? args.days) !== undefined && { window_days: Number(args.window ?? args.days) }),
         ...(args.releaser && { releaser: String(args.releaser) }),
-        ...(args["min-hold"] !== undefined && Number(args["min-hold"]) > 0 && { min_holder_amount: Number(args["min-hold"]) }),
+        ...(args["min-hold"] !== undefined && { min_holder_amount: Number(args["min-hold"]) }),
         ...(args["min-followers"] !== undefined && Number(args["min-followers"]) > 0 && { min_followers: Math.floor(Number(args["min-followers"])) }),
         ...(args["min-age"] !== undefined && Number(args["min-age"]) > 0 && { min_account_age_days: Math.floor(Number(args["min-age"])) }),
         ...(args["min-views"] !== undefined && Number(args["min-views"]) > 0 && { min_views_threshold: Math.floor(Number(args["min-views"])) }),
