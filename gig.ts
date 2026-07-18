@@ -97,7 +97,6 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   const perGigUsdAmount = args.price;
   const quantity = args.quantity || 1;
   const description = args._.slice(1).join(" ").trim();
-  const verifiedHumansOnly = !!args["verified-humans-only"];
   const service = args.service ? String(args.service).toLowerCase() : undefined;
   const productType = args["product-type"] ? String(args["product-type"]).toLowerCase() : undefined;
   const location = args.location ? String(args.location) : undefined;
@@ -119,7 +118,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   }
 
   if (!perGigUsdAmount || !description) {
-    console.error('Usage: moltycash gig create "<description>" --price <USDC> [--service x_paid_promotion --product-type <type>] [--quantity <n>] [--verified-humans-only] [--location <google_maps_url>]');
+    console.error('Usage: moltycash gig create "<description>" --price <USDC> [--service x_paid_promotion --product-type <type>] [--quantity <n>] [--location <google_maps_url>]');
     console.error('\nRequired:');
     console.error('  --price                  USDC price per completed task');
     console.error('\nOptional (pass together for a typed gig, or omit both for an open-format gig):');
@@ -216,7 +215,6 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
 
   const totalSlots = Math.floor(amount / perPostPrice);
   const eligibilityParams: Record<string, unknown> = {};
-  if (verifiedHumansOnly) eligibilityParams.verified_humans_only = true;
   if (location) eligibilityParams.location = location;
 
   const networkName = network.charAt(0).toUpperCase() + network.slice(1);
@@ -229,7 +227,6 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
     console.log(`   Format: open (any earner can pick)`);
   }
   console.log(`   Description: ${description}`);
-  if (verifiedHumansOnly) console.log(`   Verified humans only: yes`);
   if (location) console.log(`   Location: ${location}`);
   console.log();
 
