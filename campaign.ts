@@ -242,14 +242,14 @@ async function handleRelease(args: minimist.ParsedArgs): Promise<void> {
 
 async function handleClose(args: minimist.ParsedArgs): Promise<void> {
     const campaignId = args._[1] as string;
-    const to = args.to as string | undefined;
-    if (!campaignId || !to) {
-        console.error("Usage: moltycash campaign close <campaign_id> --to <refund_address>");
-        console.error("  Rejects in-flight submissions, sweeps the wallet balance to --to, and closes the campaign.");
+    if (!campaignId) {
+        console.error("Usage: moltycash campaign close <campaign_id>");
+        console.error("  Rejects in-flight submissions, refunds the remaining wallet balance to your");
+        console.error("  registered payout destination for this campaign's chain, and closes the campaign.");
         process.exit(1);
     }
     const session = requireSession();
-    const result = await a2aSession("campaign.close", { campaign_id: campaignId, refund_address: String(to) }, session.session_token);
+    const result = await a2aSession("campaign.close", { campaign_id: campaignId }, session.session_token);
     console.log(`✅ ${result.message || result.status}`);
     if (result.rejected_submissions) console.log(`   Rejected ${result.rejected_submissions} in-flight submission(s).`);
     if (result.refund_amount) console.log(`   Refunded ${result.refund_amount} → ${result.refund_to}`);

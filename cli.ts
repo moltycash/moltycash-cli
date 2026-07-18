@@ -53,6 +53,8 @@ CAMPAIGN SUBCOMMANDS (pay-per-view / CPM content campaigns; daily payouts; token
   campaign status <campaign_id>                    Live balance + credits (1¢)
   campaign review <campaign_id> <submission_id> <approve|reject> [--reason <text>]  (auto mode)
   campaign release <campaign_id> <submission_id> --views <n> [--final] [--reject]   (agent mode)
+  campaign close <campaign_id>                     Reject in-flight submissions, refund remaining
+                                                    balance to your registered payout destination, close
   campaign list                                    Browse campaigns you can earn from
   campaign submit <campaign_id> <post_url>         Submit your post to a campaign
 
