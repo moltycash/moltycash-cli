@@ -1,7 +1,7 @@
 {
   "name": "moltycash",
-  "version": "8.10.0",
-  "description": "CLI tool for sending USDC payments and managing gigs via molty.cash using x402 and MPP protocols",
+  "version": "8.11.0",
+  "description": "CLI tool for sending USDC payments and managing gigs via molty.cash via x402 (Base, Solana)",
   "type": "module",
   "bin": {
     "moltycash": "dist/cli.js"
@@ -45,11 +45,7 @@
     "@x402/core": "^2.0.0",
     "@x402/evm": "^2.0.0",
     "@x402/svm": "^2.0.0",
-    "@monad-crypto/mpp": "^0.0.3",
-    "@stellar/mpp": "^0.4.0",
-    "@stellar/stellar-sdk": "^14.6.1",
     "axios": "^1.13.2",
-    "mppx": "^0.5.9",
     "bs58": "^6.0.0",
     "dotenv": "^16.5.0",
     "minimist": "^1.2.8",
