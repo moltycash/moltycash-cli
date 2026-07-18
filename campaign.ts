@@ -3,7 +3,6 @@ import minimist from "minimist";
 import axios from "axios";
 import { captureSessionFromResult, readLatestSession } from "./lib/session.js";
 import { buildX402Signer } from "./lib/x402Network.js";
-import { hasMppKey, buildMppFetch } from "./lib/mppNetwork.js";
 
 const baseURL = process.env.RESOURCE_SERVER_URL || "https://api.molty.cash";
 const X402_EXTENSION_URI = "https://github.com/google-a2a/a2a-x402/v0.1";
@@ -77,26 +76,11 @@ function resultFromArtifacts(task: any): any {
 }
 
 /**
- * Run a paid campaign method (create / topup / status) over whichever payment rail
- * the configured key implies: MPP single-shot (Tempo/Stellar/Monad) or x402 two-phase
- * (Base/Solana/WorldChain/SKALE). The USDC fee chain is independent of the campaign's
+ * Run a paid campaign method (create / topup / status) over x402 two-phase
+ * (Base or Solana). The USDC fee chain is independent of the campaign's
  * payout chain. Returns the flat result; caches any issued session token.
  */
 async function paidCall(method: string, params: Record<string, unknown>): Promise<any> {
-    if (hasMppKey()) {
-        const { mppFetch, network } = await buildMppFetch();
-        console.log(`💳 Paying campaign fee via MPP (${network})...`);
-        const resp = await mppFetch(`${baseURL}/a2a`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ jsonrpc: "2.0", id: rpcId++, method, params }),
-        });
-        const data = (await resp.json()) as any;
-        if (data.error) throw new Error(data.error.message || "MPP request failed");
-        captureSessionFromResult(data.result);
-        return data.result;
-    }
-
     const { client, walletLabel, network } = await buildX402Signer();
     console.log(`🔧 Fee wallet: ${walletLabel} (${network})`);
     console.log("💳 Phase 1: requesting payment requirements...");

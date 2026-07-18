@@ -9,20 +9,9 @@ import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { registerExactSvmScheme } from "@x402/svm/exact/client";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import bs58 from "bs58";
-import { Mppx } from "@stellar/mpp/charge/client";
-import { stellar } from "@stellar/mpp/charge/client";
-import { tempo } from "mppx/client";
-import { monad } from "@monad-crypto/mpp/client";
 
 const privateKey = process.env.EVM_PRIVATE_KEY as Hex;
 const svmPrivateKey = process.env.SVM_PRIVATE_KEY as string;
-const stellarSecretKey = process.env.STELLAR_SECRET_KEY as string;
-const tempoPrivateKey = process.env.TEMPO_PRIVATE_KEY as Hex;
-const monadPrivateKey = process.env.MONAD_PRIVATE_KEY as Hex;
-const worldchainPrivateKey = process.env.WORLDCHAIN_PRIVATE_KEY as Hex;
-const skalePrivateKey = process.env.SKALE_PRIVATE_KEY as Hex;
-const SKALE_CHAIN_ID = 1187947933;
-const SKALE_NETWORK_ID = `eip155:${SKALE_CHAIN_ID}` as const;
 const baseURL = process.env.RESOURCE_SERVER_URL || "https://api.molty.cash";
 const identityToken = process.env.MOLTY_IDENTITY_TOKEN as string | undefined;
 
@@ -171,17 +160,12 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   // Setup network signer
   const hasEvmKey = !!privateKey;
   const hasSvmKey = !!svmPrivateKey;
-  const hasStellarKey = !!stellarSecretKey;
-  const hasTempoKey = !!tempoPrivateKey;
-  const hasMonadKey = !!monadPrivateKey;
-  const hasWorldChainKey = !!worldchainPrivateKey;
-  const hasSkaleKey = !!skalePrivateKey;
-  const keyCount = [hasEvmKey, hasSvmKey, hasStellarKey, hasTempoKey, hasMonadKey, hasWorldChainKey, hasSkaleKey].filter(Boolean).length;
-  let network: "base" | "solana" | "stellar" | "tempo" | "monad" | "worldchain" | "skale";
+  const keyCount = [hasEvmKey, hasSvmKey].filter(Boolean).length;
+  let network: "base" | "solana";
 
   if (args.network) {
-    if (!["base", "solana", "stellar", "tempo", "monad", "worldchain", "skale"].includes(args.network.toLowerCase())) {
-      console.error("Network must be 'base', 'solana', 'stellar', 'tempo', 'monad', 'worldchain', or 'skale'");
+    if (!["base", "solana"].includes(args.network.toLowerCase())) {
+      console.error("Network must be 'base' or 'solana'");
       process.exit(1);
     }
     network = args.network.toLowerCase() as typeof network;
@@ -193,46 +177,11 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
       console.error("\u274c Missing EVM_PRIVATE_KEY environment variable (needed for --network base)");
       process.exit(1);
     }
-    if (network === "stellar" && !hasStellarKey) {
-      console.error("\u274c Missing STELLAR_SECRET_KEY environment variable (needed for --network stellar)");
-      process.exit(1);
-    }
-    if (network === "tempo" && !hasTempoKey) {
-      console.error("\u274c Missing TEMPO_PRIVATE_KEY environment variable (needed for --network tempo)");
-      process.exit(1);
-    }
-    if (network === "monad" && !hasMonadKey) {
-      console.error("\u274c Missing MONAD_PRIVATE_KEY environment variable (needed for --network monad)");
-      process.exit(1);
-    }
-    if (network === "worldchain" && !hasWorldChainKey) {
-      console.error("\u274c Missing WORLDCHAIN_PRIVATE_KEY environment variable (needed for --network worldchain)");
-      process.exit(1);
-    }
-    if (network === "skale" && !hasSkaleKey) {
-      console.error("\u274c Missing SKALE_PRIVATE_KEY environment variable (needed for --network skale)");
-      process.exit(1);
-    }
   } else {
     if (keyCount > 1) {
       console.error("\u274c Multiple private keys found");
-      console.error("   Please specify which network to use with --network <base|solana|stellar|tempo|monad|worldchain|skale>");
+      console.error("   Please specify which network to use with --network <base|solana>");
       process.exit(1);
-    } else if (hasSkaleKey) {
-      network = "skale";
-      console.log("\u2139\ufe0f  Auto-detected network: SKALE");
-    } else if (hasWorldChainKey) {
-      network = "worldchain";
-      console.log("\u2139\ufe0f  Auto-detected network: World Chain");
-    } else if (hasMonadKey) {
-      network = "monad";
-      console.log("\u2139\ufe0f  Auto-detected network: Monad");
-    } else if (hasTempoKey) {
-      network = "tempo";
-      console.log("\u2139\ufe0f  Auto-detected network: Tempo");
-    } else if (hasStellarKey) {
-      network = "stellar";
-      console.log("\u2139\ufe0f  Auto-detected network: Stellar");
     } else if (hasSvmKey) {
       network = "solana";
       console.log("\u2139\ufe0f  Auto-detected network: Solana");
@@ -241,87 +190,20 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
       console.log("\u2139\ufe0f  Auto-detected network: Base");
     } else {
       console.error("\u274c No private keys found");
-      console.error("   Set EVM_PRIVATE_KEY (Base), SVM_PRIVATE_KEY (Solana), STELLAR_SECRET_KEY (Stellar), TEMPO_PRIVATE_KEY (Tempo), MONAD_PRIVATE_KEY (Monad), WORLDCHAIN_PRIVATE_KEY (World Chain), or SKALE_PRIVATE_KEY (SKALE)");
+      console.error("   Set EVM_PRIVATE_KEY (Base) or SVM_PRIVATE_KEY (Solana)");
       process.exit(1);
     }
   }
 
-  let client: any = null;
-  let mppFetch: typeof globalThis.fetch | null = null;
+  const client = new x402Client();
 
-  if (network === "monad") {
-    console.log("\n\ud83d\udd27 Creating Monad signer...");
-    const account = privateKeyToAccount(monadPrivateKey);
-    console.log(`\u2705 Monad signer created: ${account.address}`);
-    const mppClient = Mppx.create({
-      methods: [monad.charge({ account })],
-      polyfill: false,
-    });
-    mppFetch = mppClient.fetch;
-  } else if (network === "tempo") {
-    console.log("\n\ud83d\udd27 Creating Tempo signer...");
-    const account = privateKeyToAccount(tempoPrivateKey);
-    console.log(`\u2705 Tempo signer created: ${account.address}`);
-    const mppClient = Mppx.create({
-      methods: [tempo.charge({ account })],
-      polyfill: false,
-    });
-    mppFetch = mppClient.fetch;
-  } else if (network === "stellar") {
-    console.log("\n\ud83d\udd27 Creating Stellar signer...");
-    const mppClient = Mppx.create({
-      methods: [
-        stellar.charge({
-          secretKey: stellarSecretKey,
-          onProgress: (event: any) => {
-            if (event.type === "challenge") console.log(`   \ud83d\udcb0 ${event.amount} stroops \u2192 ${event.recipient}`);
-            if (event.type === "signing") console.log("   \ud83d\udd10 Signing Soroban transaction...");
-            if (event.type === "paying") console.log("   \ud83d\udce4 Submitting payment...");
-            if (event.type === "paid") console.log(`   \u2705 Paid! Hash: ${event.hash}`);
-          },
-        }),
-      ],
-      polyfill: false,
-    });
-    mppFetch = mppClient.fetch;
-    console.log("\u2705 Stellar signer ready");
-  } else if (network === "solana") {
-    client = new x402Client();
+  if (network === "solana") {
     console.log("\n\ud83d\udd27 Creating Solana signer...");
     const privateKeyBytes = bs58.decode(svmPrivateKey);
     const solanaSigner = await createKeyPairSignerFromBytes(privateKeyBytes);
     console.log(`\u2705 Solana signer created: ${solanaSigner.address}`);
     registerExactSvmScheme(client, { signer: solanaSigner });
-  } else if (network === "worldchain") {
-    client = new x402Client();
-    console.log("\n\ud83d\udd27 Creating World Chain signer...");
-    if (!worldchainPrivateKey.startsWith("0x")) {
-      console.error("\u274c WORLDCHAIN_PRIVATE_KEY must start with '0x'");
-      process.exit(1);
-    }
-    const account = privateKeyToAccount(worldchainPrivateKey);
-    console.log(`\u2705 World Chain signer created: ${account.address}`);
-    registerExactEvmScheme(client, {
-      signer: account,
-      networks: ["eip155:480"],
-      paymentRequirementsSelector: (_ver: number, reqs: any[]) => reqs.find((r: any) => r.network === "eip155:480") || reqs[0],
-    });
-  } else if (network === "skale") {
-    client = new x402Client();
-    console.log("\n\ud83d\udd27 Creating SKALE signer...");
-    if (!skalePrivateKey.startsWith("0x")) {
-      console.error("\u274c SKALE_PRIVATE_KEY must start with '0x'");
-      process.exit(1);
-    }
-    const account = privateKeyToAccount(skalePrivateKey);
-    console.log(`\u2705 SKALE signer created: ${account.address}`);
-    registerExactEvmScheme(client, {
-      signer: account,
-      networks: [SKALE_NETWORK_ID],
-      paymentRequirementsSelector: (_ver: number, reqs: any[]) => reqs.find((r: any) => r.network === SKALE_NETWORK_ID) || reqs[0],
-    });
   } else {
-    client = new x402Client();
     console.log("\n\ud83d\udd27 Creating Base signer...");
     if (!privateKey.startsWith("0x")) {
       console.error("\u274c EVM_PRIVATE_KEY must start with '0x'");
@@ -351,47 +233,6 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   if (location) console.log(`   Location: ${location}`);
   console.log();
 
-  // MPP flow (Stellar, Tempo)
-  if ((network === "stellar" || network === "tempo" || network === "monad") && mppFetch) {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      ...(identityToken && { "X-Molty-Identity-Token": identityToken }),
-    };
-
-    const body = JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "gig.create",
-      params: {
-        price: perPostPrice,
-        quantity: totalSlots,
-        description,
-        ...(service && { service }),
-        ...(productType && { product_type: productType }),
-        ...eligibilityParams,
-      },
-    });
-
-    const response = await mppFetch(`${baseURL}/a2a`, {
-      method: "POST",
-      headers,
-      body,
-    });
-
-    const data = await response.json() as any;
-    if (data.error) throw new Error(data.error.message || "Gig creation failed");
-
-    const result = data.result;
-    console.log(`\u2705 Gig created!`);
-    if (result.description) console.log(`   ${result.description}`);
-    if (result.total_slots) console.log(`   ${result.total_slots} slots at ${result.per_post_price} USDC each`);
-    if (result.deadline) console.log(`   Deadline: ${result.deadline}`);
-    if (result.transaction?.explorer) console.log(`\ud83d\udd17 ${result.transaction.explorer}`);
-    if (result.receipt) console.log(`\ud83d\udcc4 ${result.receipt}`);
-    return;
-  }
-
-  // x402 flow (Base/Solana)
   // Phase 1: Get payment requirements
   console.log("\ud83d\udcb3 Phase 1: Requesting payment requirements...");
   const phase1Result = await a2aCall(

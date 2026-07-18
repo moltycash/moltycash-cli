@@ -3,7 +3,6 @@ import minimist from "minimist";
 import axios from "axios";
 import { writeCachedSession, readCachedSession } from "./lib/session.js";
 import { buildX402Signer } from "./lib/x402Network.js";
-import { hasMppKey, buildMppFetch } from "./lib/mppNetwork.js";
 
 const baseURL = process.env.RESOURCE_SERVER_URL || "https://api.molty.cash";
 const X402_EXTENSION_URI = "https://github.com/google-a2a/a2a-x402/v0.1";
@@ -27,29 +26,6 @@ async function a2aCall(method: string, params: Record<string, unknown>): Promise
 }
 
 async function handleSessionCreate(): Promise<void> {
-    // MPP chains (Tempo / Stellar / Monad) take a different transport — single
-    // POST with Authorization: Payment header, mppFetch auto-handles 402 cycle.
-    if (hasMppKey()) {
-        const { mppFetch, walletLabel, network } = await buildMppFetch();
-        console.log(`🔧 Wallet: ${walletLabel} (${network})`);
-        console.log(`💳 Signing USDC auth payment via MPP (${network})...`);
-        const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "session.create", params: {} });
-        const resp = await mppFetch(`${baseURL}/a2a`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body,
-        });
-        const data = await resp.json() as any;
-        if (data.error) throw new Error(data.error.message || "MPP session.create failed");
-        const issued = data.result;
-        if (!issued?.session_token) throw new Error("session_token missing from MPP response");
-        writeCachedSession(issued);
-        const expiresIn = Math.max(0, issued.session_expires_at - Math.floor(Date.now() / 1000));
-        console.log(`✅ Session token cached for wallet ${issued.session_wallet}`);
-        console.log(`   Expires in ${Math.floor(expiresIn / 3600)}h ${Math.floor((expiresIn % 3600) / 60)}m`);
-        return;
-    }
-
     const { client, walletLabel, network } = await buildX402Signer();
     console.log(`🔧 Wallet: ${walletLabel} (${network})`);
 
