@@ -9,7 +9,7 @@
  * different wallets keep distinct tokens).
  *
  * Issuance: this CLI calls session.create on the molty.cash A2A endpoint,
- * which costs 1¢ x402. Or any tip/hire/gig.create paid by the same wallet
+ * which costs 1¢ x402. Or any hire/gig.create paid by the same wallet
  * will return a session token piggy-backed onto its response — captured by
  * the human.ts / gig.ts handlers and persisted via writeCachedSession.
  */
@@ -69,7 +69,7 @@ export function clearCachedSession(walletAddress: string): void {
 
 /**
  * Returns the most recently-issued non-expired session in the cache. Useful
- * for `reward balance` after a `tip` issued a session token — the CLI doesn't
+ * for `reward balance` after a `hire` issued a session token — the CLI doesn't
  * need to know which wallet's session to use; it just grabs the latest.
  */
 export function readLatestSession(): SessionEntry | null {
@@ -82,15 +82,15 @@ export function readLatestSession(): SessionEntry | null {
 }
 
 /**
- * Try to capture a session token from a generic JSON-RPC result. Tips / hires
- * / gig.create may return either a flat object with `session_token` fields or
+ * Try to capture a session token from a generic JSON-RPC result. Hires /
+ * gig.create may return either a flat object with `session_token` fields or
  * an A2A task whose artifact.data is a base64-encoded JSON with those fields.
  */
 export function captureSessionFromResult(result: unknown): void {
     if (!result || typeof result !== 'object') return;
     const r = result as any;
 
-    // Flat shape (HTTP x402 / MPP tip return)
+    // Flat shape (HTTP x402 / MPP return)
     if (r.session_token && r.session_wallet && r.session_expires_at) {
         writeCachedSession({
             session_token: String(r.session_token),

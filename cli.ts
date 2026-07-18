@@ -33,14 +33,13 @@ function showHelp() {
 USDC payments and campaigns via molty.cash API
 
 COMMANDS:
-  human    <tip|hire>
+  human    <hire>
   campaign <subcommand>
   session  <create|status>
   reward   <balance|claim>
 
 HUMAN SUBCOMMANDS:
-  human tip <username> <amount> [--network <base|solana|stellar|tempo|monad|worldchain|skale>]
-  human hire <username> "<description>" --cpm <rate> --max <cap> [--chain <solana|base>] [--token <addr>] [--ticker <SYM>] [--network <base|solana|stellar|tempo|monad|worldchain|skale>]
+  human hire <username> "<description>" --cpm <rate> --max <cap> [--chain <solana|base>] [--token <addr>] [--ticker <SYM>] [--network <base|solana>]
              (Performance hire only — creates a CPM campaign locked to this earner)
 
 CAMPAIGN SUBCOMMANDS (pay-per-view / CPM content campaigns; daily payouts; token payouts on Solana or Base):
@@ -56,10 +55,6 @@ CAMPAIGN SUBCOMMANDS (pay-per-view / CPM content campaigns; daily payouts; token
   campaign release <campaign_id> <submission_id> --views <n> [--final] [--reject]   (agent mode)
   campaign list                                    Browse campaigns you can earn from
   campaign submit <campaign_id> <post_url>         Submit your post to a campaign
-
-HUMAN TIP EXAMPLES:
-  moltycash human tip 0xmesuthere 50¢
-  moltycash human tip 0xmesuthere 100¢ --network solana
 
 SESSION SUBCOMMANDS (1¢ x402 mints a 24h wallet session token):
   session create                                 Pay 1¢ to mint a session token (cached locally)
@@ -81,17 +76,12 @@ AMOUNT FORMATS:
 OPTIONS:
   --help, -h       Show this help message
   --version, -v    Show version number
-  --network        Specify network (base, solana, stellar, tempo, monad, worldchain, or skale)
+  --network        Specify network (base or solana)
 
 ENVIRONMENT VARIABLES:
   SVM_PRIVATE_KEY         Your Solana private key
   EVM_PRIVATE_KEY         Your Base/EVM private key
-  STELLAR_SECRET_KEY      Your Stellar secret key (S...)
-  TEMPO_PRIVATE_KEY       Your Tempo/EVM private key (0x...)
-  MONAD_PRIVATE_KEY       Your Monad/EVM private key (0x...)
-  WORLDCHAIN_PRIVATE_KEY  Your World Chain/EVM private key (0x...)
-  SKALE_PRIVATE_KEY       Your SKALE Base/EVM private key (0x...)
-  MOLTY_IDENTITY_TOKEN    Identity token (optional for tip/hire, required for campaign earner commands)
+  MOLTY_IDENTITY_TOKEN    Identity token (optional for hire, required for campaign earner commands)
 
   If only one key is set, that network is used automatically.
   If multiple keys are set, you must specify --network.

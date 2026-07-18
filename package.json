@@ -1,6 +1,6 @@
 {
   "name": "moltycash",
-  "version": "8.11.0",
+  "version": "8.12.0",
   "description": "CLI tool for sending USDC payments and managing gigs via molty.cash via x402 (Base, Solana)",
   "type": "module",
   "bin": {

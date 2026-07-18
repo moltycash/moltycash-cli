@@ -4,7 +4,6 @@ import axios from "axios";
 import { readCachedSession, readLatestSession } from "./lib/session.js";
 import { buildExplorerUrl } from "./lib/explorer.js";
 import { buildX402Signer } from "./lib/x402Network.js";
-import { hasMppKey, buildMppFetch } from "./lib/mppNetwork.js";
 
 const baseURL = process.env.RESOURCE_SERVER_URL || "https://api.molty.cash";
 const X402_EXTENSION_URI = "https://github.com/google-a2a/a2a-x402/v0.1";
@@ -63,7 +62,7 @@ async function resolveWalletLabel(): Promise<string> {
 
 async function handleBalance(): Promise<void> {
     // Prefer the wallet-specific session if any env key is set; otherwise just
-    // grab the latest cached session (e.g. one issued by a recent tip).
+    // grab the latest cached session (e.g. one issued by a recent hire).
     let cached = null;
     try {
         const label = await resolveWalletLabel();
@@ -73,7 +72,6 @@ async function handleBalance(): Promise<void> {
     if (!cached) {
         console.error("❌ No active session found.");
         console.error("   Make a paid call to mint one — any of:");
-        console.error("     npx moltycash human tip <handle> 1¢");
         console.error("     npx moltycash session create");
         process.exit(1);
     }
@@ -109,41 +107,10 @@ async function handleClaim(args: minimist.ParsedArgs): Promise<void> {
         process.exit(1);
     }
 
-    // MPP chains (Tempo / Stellar / Monad) — single POST with Authorization
-    // header, server handles 402 cycle, returns flat result.
-    if (hasMppKey()) {
-        const { mppFetch, walletLabel, network } = await buildMppFetch();
-        console.log(`🎁 Claiming $moltycash for ${walletLabel} (${network}) → ${destination}`);
-        console.log(`💳 Signing USDC exit-tax via MPP (${network})...`);
-        const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "reward.claim", params: { destination } });
-        const resp = await mppFetch(`${baseURL}/a2a`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body,
-        });
-        const data = await resp.json() as any;
-        if (data.error) {
-            const e: any = new Error(data.error.message || "MPP reward.claim failed");
-            e.code = data.error.code;
-            e.data = data.error.data;
-            throw e;
-        }
-        const receipt = data.result;
-        console.log("");
-        console.log(`✅ Claimed ${(receipt.claimed_tokens || 0).toLocaleString()} $moltycash`);
-        console.log(`   Destination:    ${receipt.destination}`);
-        console.log(`   Fee paid:       $${receipt.fee_paid_usd} USDC (${receipt.fee_network || network})`);
-        const feeExplorer = buildExplorerUrl(receipt.fee_tx, receipt.fee_network) || receipt.fee_tx;
-        console.log(`   Fee tx:         ${feeExplorer}`);
-        const sweepExplorer = buildExplorerUrl(receipt.sweep_tx, receipt.sweep_network || 'base') || receipt.sweep_tx;
-        console.log(`   Sweep tx:       ${sweepExplorer}`);
-        return;
-    }
-
     // Build x402 client for whichever chain has a private key configured. The
     // signing chain doesn't have to match the destination — destination is
     // always Base EVM (where the sweep lands); fee can be paid from any
-    // supported x402 chain (Base / Solana / World Chain / SKALE).
+    // supported x402 chain (Base or Solana).
     const { client, walletLabel, network } = await buildX402Signer();
     console.log(`🎁 Claiming $moltycash for ${walletLabel} (${network}) → ${destination}`);
 
