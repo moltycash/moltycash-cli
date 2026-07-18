@@ -444,30 +444,29 @@ async function handleTip(args: minimist.ParsedArgs): Promise<void> {
 // ─── Hire Subcommand ─────────────────────────────────────────
 
 async function handleHire(args: minimist.ParsedArgs): Promise<void> {
-  // Unified shape: hire <username> "<description>" --amount <USD> [--service <svc> --product-type <type>]
-  //   - description: required (positional or --description)
-  //   - --amount: required (USD, max 50)
-  //   - --service + --product-type: optional, must be paired (both or neither).
-  //     When omitted the gig is stamped as custom_service / custom_product (open-format).
+  // Unified hire shape. Two payout models:
+  //
+  // Fixed (default):
+  //   hire <username> "<description>" --amount <USD> --service <svc> --product-type <type>
+  //
+  // Performance (CPM campaign dedicated to the earner):
+  //   hire <username> "<description>" --amount <USD> --payout-model performance
+  //     --cpm <rate> --max-payout <cap> [--payout-chain solana|base]
+  //     [--token-contract <addr>] [--ticker <symbol>]
+
   const username = args._.length >= 2 ? String(args._[1]) : "";
   const positionalDescription = args._.length >= 3 ? args._.slice(2).join(" ").trim() : "";
   const flagDescription = args.description !== undefined ? String(args.description).trim() : "";
   const description = flagDescription || positionalDescription;
 
-  const svcFlag = args.service !== undefined ? String(args.service).toLowerCase() : undefined;
-  const typeFlag = args["product-type"] !== undefined ? String(args["product-type"]).toLowerCase() : undefined;
   const amountRaw = args.amount !== undefined ? args.amount : undefined;
-  const partialFlags = !!svcFlag !== !!typeFlag;
 
-  if (!username || !description || amountRaw === undefined || partialFlags) {
+  if (!username || !description || amountRaw === undefined) {
     console.error('Usage:');
-    console.error('  moltycash human hire <username> "<description>" --amount <USD> [--service <svc> --product-type <type>]');
+    console.error('  moltycash human hire <username> "<description>" --amount <USD> --cpm <rate> --max-payout <cap> [--payout-chain solana|base] [--token-contract <addr>] [--ticker TOKEN]');
     console.error("\nExamples:");
-    console.error('  moltycash human hire 0xmesuthere "Make a 5min Loom" --amount 30');
-    console.error('  moltycash human hire 0xmesuthere "Write an X article on x402" --amount 7 --service x_paid_promotion --product-type x_article');
-    console.error("\n--service and --product-type must be passed together, or both omitted (open-format).");
-    console.error("Amount is in USDC, capped at 50. Discover available products via:");
-    console.error('  curl https://api.molty.cash/<username>/.well-known/agent-card.json');
+    console.error('  moltycash human hire 0xmesuthere "Shill our token launch" --amount 1 --cpm 0.001 --max-payout 10 --ticker MYTOKEN');
+    console.error('  moltycash human hire 0xmesuthere "Post about our launch on X" --amount 1 --cpm 5 --max-payout 50');
     process.exit(1);
   }
 
@@ -481,12 +480,35 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
     amount = parseAmount(String(amountRaw));
     if (amount <= 0) throw new Error("amount must be greater than 0");
     if (amount > 50) throw new Error("amount must be 50 USDC or less");
+    if (amount < 1.0) throw new Error("hire requires amount >= 1.0 USDC (campaign creation fee)");
   } catch (e: any) {
     console.error(`❌ ${e.message}`);
     process.exit(1);
   }
 
-  const isTyped = !!svcFlag && !!typeFlag;
+  const cpmRaw = args.cpm !== undefined ? Number(args.cpm) : NaN;
+  const maxPayoutRaw = args["max-payout"] !== undefined ? Number(args["max-payout"]) : NaN;
+  if (!Number.isFinite(cpmRaw) || cpmRaw <= 0) {
+    console.error("❌ --cpm is required and must be > 0");
+    process.exit(1);
+  }
+  if (!Number.isFinite(maxPayoutRaw) || maxPayoutRaw <= 0) {
+    console.error("❌ --max-payout is required and must be > 0");
+    process.exit(1);
+  }
+  const payoutChain = args["payout-chain"] ? String(args["payout-chain"]).toLowerCase() : "solana";
+  if (payoutChain !== "solana" && payoutChain !== "base") {
+    console.error('❌ --payout-chain must be "solana" or "base"');
+    process.exit(1);
+  }
+
+  const perfFlags: Record<string, unknown> = {
+    cpm_rate: cpmRaw,
+    max_payout_per_submission: maxPayoutRaw,
+    payout_chain: payoutChain,
+    ...(args["token-contract"] ? { token_contract: String(args["token-contract"]) } : {}),
+    ...(args.ticker ? { ticker: String(args.ticker) } : {}),
+  };
 
   const networkConfig = await setupNetwork(args);
   const hireEndpoint = `${baseURL}/${username}/a2a`;
@@ -496,18 +518,15 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
   console.log(`   Network: ${networkConfig.network.charAt(0).toUpperCase() + networkConfig.network.slice(1)}`);
   console.log(`   Task: ${description}`);
   console.log(`   💰 Amount: $${amount} USDC`);
-  if (isTyped) {
-    console.log(`   Service: ${svcFlag}`);
-    console.log(`   Product type: ${typeFlag}`);
-  } else {
-    console.log(`   Format: open (custom task)`);
-  }
+  console.log(`   CPM: ${cpmRaw} ${args.ticker || 'token'} / 1K views`);
+  console.log(`   Cap: ${maxPayoutRaw} ${args.ticker || 'token'} / post`);
+  console.log(`   Payout chain: ${payoutChain}`);
   console.log();
 
   const buildHireParams = (): Record<string, unknown> => ({
     description,
     amount,
-    ...(isTyped && { service: svcFlag, product_type: typeFlag }),
+    ...perfFlags,
   });
 
   // MPP flow (Stellar, Tempo)
@@ -519,10 +538,7 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
       buildHireParams(),
     );
 
-    console.log(`✅ @${result.to || username} hired for ${result.amount} USDC`);
-    const explorerUrl = result.transaction?.explorer || buildExplorerUrl(result.transaction_hash, result.network);
-    if (explorerUrl) console.log(`🔗 ${explorerUrl}`);
-    if (result.receipt) console.log(`📄 ${result.receipt}`);
+    printHireResult(result, username);
     return;
   }
 
@@ -584,10 +600,7 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
     if (artifact.data) {
       try {
         const data = JSON.parse(Buffer.from(artifact.data, "base64").toString());
-        console.log(`✅ @${data.to || username} hired for ${data.amount} USDC`);
-        const explorerUrl = data.transaction?.explorer || buildExplorerUrl(data.transaction_hash, data.network);
-        if (explorerUrl) console.log(`🔗 ${explorerUrl}`);
-        if (data.receipt) console.log(`📄 ${data.receipt}`);
+        printHireResult(data, username);
         return;
       } catch {
         // ignore
@@ -596,10 +609,8 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
   }
 
   // Fallback: check for direct result fields
-  if (result.type === 'hire' || result.gig_id) {
-    console.log(`✅ @${result.to || username} hired for ${result.amount} USDC`);
-    if (result.transaction?.explorer) console.log(`🔗 ${result.transaction.explorer}`);
-    if (result.receipt) console.log(`📄 ${result.receipt}`);
+  if (result.type === 'performance_hire' || result.type === 'hire' || result.gig_id) {
+    printHireResult(result, username);
     return;
   }
 
@@ -608,6 +619,25 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
     .map((p: any) => p.text)
     .join("\n");
   console.log(`✅ ${msg || `@${username} hired`}`);
+}
+
+function printHireResult(result: any, username: string): void {
+  if (result.type === 'performance_hire' || result.campaign_id) {
+    console.log(`✅ Performance campaign created for @${result.to || username}`);
+    console.log(`   Campaign ID: ${result.campaign_id}`);
+    console.log(`   Fund wallet: ${result.wallet_address}`);
+    console.log(`   Chain: ${result.payout_chain}`);
+    console.log(`   Token: ${result.token_contract}`);
+    if (result.ticker) console.log(`   Ticker: $${result.ticker}`);
+    console.log(`   CPM: ${result.cpm_rate} ${result.ticker || 'token'} / 1K views`);
+    console.log(`   Cap: ${result.max_payout_per_submission} ${result.ticker || 'token'} / post`);
+    if (result.message) console.log(`\n💡 ${result.message}`);
+    return;
+  }
+  console.log(`✅ @${result.to || username} hired for ${result.amount} USDC`);
+  const explorerUrl = result.transaction?.explorer || buildExplorerUrl(result.transaction_hash, result.network);
+  if (explorerUrl) console.log(`🔗 ${explorerUrl}`);
+  if (result.receipt) console.log(`📄 ${result.receipt}`);
 }
 
 // ─── Main ────────────────────────────────────────────────────
@@ -619,12 +649,12 @@ if (!subcommand) {
   console.error("Usage: moltycash human <tip|hire>");
   console.error("\nSubcommands:");
   console.error("  tip  <username> <amount>                                                                       Tip USDC");
-  console.error('  hire <username> "<description>" --amount <USD> [--service <svc> --product-type <type>]         Hire someone');
+  console.error('  hire <username> "<description>" --amount <USD> --service <svc> --product-type <type>          Fixed hire (escrow)');
+  console.error('  hire <username> "<description>" --amount 1 --payout-model performance --cpm <rate> --max-payout <cap>  Performance hire (CPM)');
   console.error("\nExamples:");
   console.error("  moltycash human tip 0xmesuthere 50¢");
-  console.error('  moltycash human hire 0xmesuthere "Make a 5min Loom" --amount 30');
   console.error('  moltycash human hire 0xmesuthere "Write an X article on x402" --amount 7 --service x_paid_promotion --product-type x_article');
-  console.error("\n--service and --product-type are optional but must be passed together. Without them, the hire is open-format (custom).");
+  console.error('  moltycash human hire 0xmesuthere "Shill our launch" --amount 1 --payout-model performance --cpm 0.001 --max-payout 10 --ticker MYTOKEN');
   console.error("Discover available products via the user's agent card:");
   console.error("  curl https://api.molty.cash/<username>/.well-known/agent-card.json");
   process.exit(1);

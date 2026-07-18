@@ -53,7 +53,7 @@ npx moltycash human hire <username> "<description>" [--service <service>] [--net
 
 ```bash
 npx moltycash human hire 0xmesuthere "Write an X Article about molty.cash"
-npx moltycash human hire 0xmesuthere "Make a TikTok about our product" --service tiktok_paid_promotion
+npx moltycash human hire 0xmesuthere "Post about our product on X" --service x_paid_promotion
 ```
 
 ### Amount Formats

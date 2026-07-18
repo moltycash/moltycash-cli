@@ -30,29 +30,18 @@ function showHelp() {
 ║                       molty.cash CLI                       ║
 ╚════════════════════════════════════════════════════════════╝
 
-USDC payments, hiring, and gigs via molty.cash API
+USDC payments and campaigns via molty.cash API
 
 COMMANDS:
   human    <tip|hire>
-  gig      <subcommand>
   campaign <subcommand>
   session  <create|status>
   reward   <balance|claim>
 
 HUMAN SUBCOMMANDS:
   human tip <username> <amount> [--network <base|solana|stellar|tempo|monad|worldchain|skale>]
-  human hire <username> "<description>" [--service <service>] [--network <base|solana|stellar|tempo|monad|worldchain|skale>]
-
-GIG SUBCOMMANDS:
-  gig create "<description>" --price <USDC> [--quantity <n>] [--network <base|solana|stellar|tempo|monad|worldchain|skale>] [--service <service>] [--verified-humans-only] [--location <google_maps_url>]
-  gig created                          List gigs you created
-  gig get <gig_id>                     Get gig details
-  gig review <gig_id> <assignment_id> <approve|reject> ["reason"]
-  gig list                             Browse available gigs
-  gig pick <gig_id>                    Accept a gig slot
-  gig submit <gig_id> <tweet_url> [--code XXXXX]
-                                       Submit proof (--code required for location gigs)
-  gig picked                           List gigs you've picked
+  human hire <username> "<description>" --cpm <rate> --max <cap> [--chain <solana|base>] [--token <addr>] [--ticker <SYM>] [--network <base|solana|stellar|tempo|monad|worldchain|skale>]
+             (Performance hire only — creates a CPM campaign locked to this earner)
 
 CAMPAIGN SUBCOMMANDS (pay-per-view / CPM content campaigns; daily payouts; token payouts on Solana or Base):
   campaign create --cpm <rate> --max <cap> "<description>"
@@ -67,7 +56,6 @@ CAMPAIGN SUBCOMMANDS (pay-per-view / CPM content campaigns; daily payouts; token
   campaign release <campaign_id> <submission_id> --views <n> [--final] [--reject]   (agent mode)
   campaign list                                    Browse campaigns you can earn from
   campaign submit <campaign_id> <post_url>         Submit your post to a campaign
-  gig dispute <gig_id> <assignment_id> ["reason"]
 
 HUMAN TIP EXAMPLES:
   moltycash human tip 0xmesuthere 50¢
@@ -82,13 +70,8 @@ REWARD SUBCOMMANDS (require an active session):
   reward claim --destination <0x...>             Claim all $moltycash to a Base EVM address
 
 HUMAN HIRE EXAMPLES:
-  moltycash human hire 0xmesuthere "Write an X Article about molty.cash"
-  moltycash human hire 0xmesuthere "Make a TikTok" --service tiktok_paid_promotion
-
-GIG EXAMPLES:
-  moltycash gig create "Post about molty.cash" --price 0.1 --quantity 5
-  moltycash gig list
-  moltycash gig pick ppp_123
+  moltycash human hire 0xmesuthere "Write an X Article about molty.cash" --cpm 5 --max 50
+  moltycash human hire 0xmesuthere "Post about us on X" --cpm 2 --max 20 --chain base
 
 AMOUNT FORMATS:
   1¢               Cents notation (recommended)
@@ -108,7 +91,7 @@ ENVIRONMENT VARIABLES:
   MONAD_PRIVATE_KEY       Your Monad/EVM private key (0x...)
   WORLDCHAIN_PRIVATE_KEY  Your World Chain/EVM private key (0x...)
   SKALE_PRIVATE_KEY       Your SKALE Base/EVM private key (0x...)
-  MOLTY_IDENTITY_TOKEN    Identity token (optional for tip/hire/gig create, required for earner commands)
+  MOLTY_IDENTITY_TOKEN    Identity token (optional for tip/hire, required for campaign earner commands)
 
   If only one key is set, that network is used automatically.
   If multiple keys are set, you must specify --network.
@@ -156,8 +139,9 @@ function main() {
     const commandArgs = args.slice(1);
     runCommand("human.js", commandArgs);
   } else if (command === "gig") {
-    const commandArgs = args.slice(1);
-    runCommand("gig.js", commandArgs);
+    console.error('\n❌ The "gig" command has been removed.\n');
+    console.error('Use "campaign" commands to create and manage CPM content campaigns.\n');
+    process.exit(1);
   } else if (command === "campaign") {
     const commandArgs = args.slice(1);
     runCommand("campaign.js", commandArgs);

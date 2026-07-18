@@ -142,6 +142,8 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
         console.error("  --window <days>             daily-payout tracking window in days (default 7, 1–30)");
         console.error("  --mode <auto|agent>         auto=moltycash reads X views; agent=your agent reports views (default auto)");
         console.error("  --releaser <wallet>         agent mode: wallet allowed to release besides you");
+        console.error("  --post-type <type>          restrict submissions to a specific X post format (optional)");
+        console.error("                              values: x_post | x_thread | x_quote | x_reply | x_short_video | x_long_video | x_article");
         console.error("");
         console.error("  Daily payouts: guaranteed base payout ~2h after posting (owner reject window),");
         console.error("  then daily top-ups on new views for --window days, each min(views×cpm/1000, cap).");
@@ -166,6 +168,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
         ...(args["min-followers"] !== undefined && Number(args["min-followers"]) > 0 && { min_followers: Math.floor(Number(args["min-followers"])) }),
         ...(args["min-age"] !== undefined && Number(args["min-age"]) > 0 && { min_account_age_days: Math.floor(Number(args["min-age"])) }),
         ...(args["min-views"] !== undefined && Number(args["min-views"]) > 0 && { min_views_threshold: Math.floor(Number(args["min-views"])) }),
+        ...(args["post-type"] && { post_type: String(args["post-type"]) }),
     };
 
     console.log("\n📣 Creating content campaign...\n");
@@ -307,7 +310,7 @@ async function handleSubmit(args: minimist.ParsedArgs): Promise<void> {
 // Force string parsing for flags that carry addresses/hex/text — otherwise minimist
 // coerces values like a 0x… token address into a (lossy) hex Number.
 const args = minimist(process.argv.slice(2), {
-    string: ["chain", "token", "ticker", "mode", "releaser", "description", "reason", "to", "min-hold"],
+    string: ["chain", "token", "ticker", "mode", "releaser", "description", "reason", "to", "min-hold", "post-type"],
 });
 const subcommand = args._[0];
 

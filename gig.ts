@@ -130,16 +130,16 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   }
 
   if (!perGigUsdAmount || !description) {
-    console.error('Usage: moltycash gig create "<description>" --price <USDC> [--service <service> --product-type <type>] [--quantity <n>] [--verified-humans-only] [--location <google_maps_url>]');
+    console.error('Usage: moltycash gig create "<description>" --price <USDC> [--service x_paid_promotion --product-type <type>] [--quantity <n>] [--verified-humans-only] [--location <google_maps_url>]');
     console.error('\nRequired:');
     console.error('  --price                  USDC price per completed task');
     console.error('\nOptional (pass together for a typed gig, or omit both for an open-format gig):');
-    console.error('  --service                Platform: x_paid_promotion | instagram_paid_promotion | tiktok_paid_promotion | reddit_paid_promotion | substack_paid_promotion | youtube_paid_promotion');
-    console.error('  --product-type           Format on that platform — must match service. e.g. x_post, x_thread, x_quote, x_short_video, x_long_video, x_article, x_reply, instagram_post, tiktok_video, reddit_post, substack_post, youtube_video');
+    console.error('  --service                x_paid_promotion (X is the only supported platform)');
+    console.error('  --product-type           X format: x_post | x_thread | x_quote | x_short_video | x_long_video | x_article | x_reply');
     console.error('\nExamples:');
     console.error('  moltycash gig create "Review my landing page" --price 1                                            # open-format — any earner can pick');
     console.error('  moltycash gig create "Post about us" --price 0.5 --service x_paid_promotion --product-type x_post  # typed — only earners with x_post products');
-    console.error('  moltycash gig create "Make a TikTok" --price 3 --service tiktok_paid_promotion --product-type tiktok_video --quantity 5');
+    console.error('  moltycash gig create "Thread about our launch" --price 3 --service x_paid_promotion --product-type x_thread --quantity 5');
     console.error('\nTyped gigs: only earners whose enabled products match `product_type` can list/pick. Open-format gigs are visible to every eligible earner.');
     process.exit(1);
   }
