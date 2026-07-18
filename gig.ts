@@ -99,26 +99,9 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   const description = args._.slice(1).join(" ").trim();
   const service = args.service ? String(args.service).toLowerCase() : undefined;
   const productType = args["product-type"] ? String(args["product-type"]).toLowerCase() : undefined;
-  const location = args.location ? String(args.location) : undefined;
-
-  if (location) {
-    try {
-      const url = new URL(location);
-      const validHosts = ['maps.app.goo.gl', 'goo.gl', 'www.google.com', 'google.com', 'maps.google.com'];
-      if (!validHosts.includes(url.hostname)) {
-        console.error("\u274c Invalid --location: must be a Google Maps link");
-        console.error("   Example: https://maps.app.goo.gl/abc123");
-        process.exit(1);
-      }
-    } catch {
-      console.error("\u274c Invalid --location: must be a valid Google Maps URL");
-      console.error("   Example: https://maps.app.goo.gl/abc123");
-      process.exit(1);
-    }
-  }
 
   if (!perGigUsdAmount || !description) {
-    console.error('Usage: moltycash gig create "<description>" --price <USDC> [--service x_paid_promotion --product-type <type>] [--quantity <n>] [--location <google_maps_url>]');
+    console.error('Usage: moltycash gig create "<description>" --price <USDC> [--service x_paid_promotion --product-type <type>] [--quantity <n>]');
     console.error('\nRequired:');
     console.error('  --price                  USDC price per completed task');
     console.error('\nOptional (pass together for a typed gig, or omit both for an open-format gig):');
@@ -214,8 +197,6 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
   }
 
   const totalSlots = Math.floor(amount / perPostPrice);
-  const eligibilityParams: Record<string, unknown> = {};
-  if (location) eligibilityParams.location = location;
 
   const networkName = network.charAt(0).toUpperCase() + network.slice(1);
   console.log(`\n\ud83c\udfaf Creating gig: ${totalSlots} slot(s) at ${perPostPrice} USDC each (total: ${amount} USDC)`);
@@ -227,7 +208,6 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
     console.log(`   Format: open (any earner can pick)`);
   }
   console.log(`   Description: ${description}`);
-  if (location) console.log(`   Location: ${location}`);
   console.log();
 
   // Phase 1: Get payment requirements
@@ -240,7 +220,6 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
       description,
       ...(service && { service }),
       ...(productType && { product_type: productType }),
-      ...eligibilityParams,
     },
     { "X-A2A-Extensions": X402_EXTENSION_URI },
   );
@@ -267,7 +246,6 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
       description,
       ...(service && { service }),
       ...(productType && { product_type: productType }),
-      ...eligibilityParams,
       taskId: phase1Result.id,
       payment: signedPayment,
     },

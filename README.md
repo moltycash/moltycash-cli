@@ -59,9 +59,6 @@ npx moltycash gig create "Tweet a banger about molty.cash" --price 1 --quantity 
 # With service targeting
 npx moltycash gig create "Post about us" --price 0.50 --service x_paid_promotion --quantity 10
 
-# Location gig (discoverable via Telegram location sharing only)
-npx moltycash gig create "Eat here, post receipt photo on X" --price 1 --location "https://maps.app.goo.gl/..."
-
 # List your created gigs
 npx moltycash gig created
 
