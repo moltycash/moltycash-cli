@@ -1,6 +1,6 @@
 {
   "name": "moltycash",
-  "version": "8.13.0",
+  "version": "8.14.0",
   "description": "CLI tool for hiring humans and running CPM content campaigns via molty.cash via x402 (Base, Solana)",
   "type": "module",
   "bin": {
