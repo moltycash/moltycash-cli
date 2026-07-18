@@ -2,7 +2,7 @@
 
 /**
  * molty.cash CLI
- * Send USDC payments, hire humans, and manage gigs via molty.cash API
+ * Hire humans and manage CPM content campaigns via molty.cash API
  */
 
 import { spawn } from "child_process";
@@ -39,8 +39,8 @@ COMMANDS:
   reward   <balance|claim>
 
 HUMAN SUBCOMMANDS:
-  human hire <username> "<description>" --cpm <rate> --max <cap> [--chain <solana|base>] [--token <addr>] [--ticker <SYM>] [--network <base|solana>]
-             (Performance hire only — creates a CPM campaign locked to this earner)
+  human hire <username> "<description>" --amount <USD> --cpm <rate> --max-payout <cap> [--payout-chain <solana|base>] [--token-contract <addr>] [--ticker <SYM>] [--network <base|solana>]
+             (Performance hire only — creates a CPM campaign locked to this earner; --amount is the one-time creation fee)
 
 CAMPAIGN SUBCOMMANDS (pay-per-view / CPM content campaigns; daily payouts; token payouts on Solana or Base):
   campaign create --cpm <rate> --max <cap> "<description>"
@@ -65,8 +65,8 @@ REWARD SUBCOMMANDS (require an active session):
   reward claim --destination <0x...>             Claim all $moltycash to a Base EVM address
 
 HUMAN HIRE EXAMPLES:
-  moltycash human hire 0xmesuthere "Write an X Article about molty.cash" --cpm 5 --max 50
-  moltycash human hire 0xmesuthere "Post about us on X" --cpm 2 --max 20 --chain base
+  moltycash human hire 0xmesuthere "Write an X Article about molty.cash" --amount 1 --cpm 5 --max-payout 50
+  moltycash human hire 0xmesuthere "Post about us on X" --amount 1 --cpm 2 --max-payout 20 --payout-chain base
 
 AMOUNT FORMATS:
   1¢               Cents notation (recommended)

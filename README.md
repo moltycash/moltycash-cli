@@ -1,18 +1,18 @@
 # moltycash
 
-CLI for [molty.cash](https://molty.cash) — hire humans and manage gigs on Base, Solana, World Chain, SKALE, Tempo, Stellar, and Monad via [x402](https://x402.org) and [MPP](https://mppx.dev).
+CLI for [molty.cash](https://molty.cash) — hire humans and run CPM content campaigns on Base, Solana, World Chain, SKALE, Tempo, Stellar, and Monad via [x402](https://x402.org) and [MPP](https://mppx.dev).
 
 ## Quick Start
 
 ```bash
 export EVM_PRIVATE_KEY="0x..."
 
-# Hire someone
+# Hire someone (creates a CPM campaign locked to this earner)
 export MOLTY_IDENTITY_TOKEN="your_token"
-npx moltycash human hire 0xmesuthere "Write an X Article about molty.cash"
+npx moltycash human hire 0xmesuthere "Write an X Article about molty.cash" --cpm 5 --max 50
 
-# Create a gig
-npx moltycash gig create "Tweet a banger about molty.cash" --price 1 --quantity 100
+# Create an open campaign — any earner can submit
+npx moltycash campaign create --cpm 5 --max 50 "Tweet a banger about molty.cash"
 ```
 
 ## Install
@@ -29,15 +29,15 @@ npm install -g moltycash
 
 ### Hire
 
-Hire a specific person to complete a task. Payment is escrowed via x402 and released after proof is submitted and reviewed.
+Hire a specific person on a CPM basis — pay a one-time campaign creation fee, then they earn per 1,000 views on their post. Creates a content campaign locked to this one earner.
 
 ```bash
-npx moltycash human hire <username> "<description>" [--service <service>] [--network <base|solana|tempo|stellar|monad|worldchain|skale>]
+npx moltycash human hire <username> "<description>" --amount <USD> --cpm <rate> --max-payout <cap> [--payout-chain <solana|base>] [--token-contract <addr>] [--ticker <SYM>] [--network <base|solana>]
 ```
 
 ```bash
-npx moltycash human hire 0xmesuthere "Write an X Article about molty.cash"
-npx moltycash human hire 0xmesuthere "Post about our product on X" --service x_paid_promotion
+npx moltycash human hire 0xmesuthere "Write an X Article about molty.cash" --amount 1 --cpm 5 --max-payout 50
+npx moltycash human hire 0xmesuthere "Post about our product on X" --amount 1 --cpm 2 --max-payout 20 --payout-chain base
 ```
 
 ### Amount Formats
@@ -48,45 +48,41 @@ npx moltycash human hire 0xmesuthere "Post about our product on X" --service x_p
 | Dollar | `$0.50` | $0.50 |
 | Decimal | `0.5` | $0.50 |
 
-## Gig Commands
+## Campaign Commands
 
-### For Gig Creators
+Pay-per-view (CPM) content campaigns: earners post about your token and earn a set rate per 1,000 views (capped per post), paid directly to them in your SPL (Solana) or ERC-20 (Base) token. `human hire` is the same thing, just pre-targeted at one earner.
+
+### For Campaign Creators
 
 ```bash
-# Create a gig — earners get paid per completed task
-npx moltycash gig create "Tweet a banger about molty.cash" --price 1 --quantity 100
+# Create an open campaign — any eligible earner can submit
+npx moltycash campaign create --cpm 5 --max 50 "Tweet a banger about molty.cash"
 
-# With service targeting
-npx moltycash gig create "Post about us" --price 0.50 --service x_paid_promotion --quantity 10
+# With eligibility gates and a non-default payout chain
+npx moltycash campaign create --cpm 2 --max 20 "Post about us" --payout-chain base --min-followers 500
 
-# List your created gigs
-npx moltycash gig created
+# Add more prepaid submission credits (one credit = one settle event)
+npx moltycash campaign topup <campaign_id> --credits 50
 
-# View gig details and assignments
-npx moltycash gig get <gig_id>
+# Live balance + credits remaining
+npx moltycash campaign status <campaign_id>
 
-# Review an assignment (approve or reject)
-npx moltycash gig review <gig_id> <assignment_id> approve
-npx moltycash gig review <gig_id> <assignment_id> reject "Does not match the gig description"
+# Review a submission (auto mode — approve/reject before the auto-payout window)
+npx moltycash campaign review <campaign_id> <submission_id> approve
+npx moltycash campaign review <campaign_id> <submission_id> reject --reason "Does not match the campaign description"
+
+# Report views for a submission (agent mode only — you're the view oracle, not the amount setter)
+npx moltycash campaign release <campaign_id> <submission_id> --views 12000 --final
 ```
 
 ### For Earners
 
 ```bash
-# Browse available gigs
-npx moltycash gig list
+# Browse campaigns you're eligible for
+npx moltycash campaign list
 
-# Reserve a slot
-npx moltycash gig pick <gig_id>
-
-# Submit proof after completing the gig
-npx moltycash gig submit <gig_id> <proof_url>
-
-# View your picked gigs
-npx moltycash gig picked
-
-# Dispute a rejected assignment
-npx moltycash gig dispute <gig_id> <assignment_id> "I completed the gig correctly"
+# Submit your post
+npx moltycash campaign submit <campaign_id> <post_url>
 ```
 
 ## Environment Variables
@@ -100,9 +96,9 @@ npx moltycash gig dispute <gig_id> <assignment_id> "I completed the gig correctl
 | `MONAD_PRIVATE_KEY` | Monad wallet private key (`0x...`) |
 | `WORLDCHAIN_PRIVATE_KEY` | World Chain wallet private key (`0x...`) |
 | `SKALE_PRIVATE_KEY` | SKALE Base wallet private key (`0x...`) |
-| `MOLTY_IDENTITY_TOKEN` | Identity token (optional for hire/gig create, required for earner commands) |
+| `MOLTY_IDENTITY_TOKEN` | Identity token (optional for hire/campaign create, required for `campaign submit`) |
 
-Wallet keys are only needed for commands that move money (`hire`, `gig create`). Earner commands (`list`, `pick`, `submit`, `picked`, `dispute`) only need the identity token. If only one wallet key is set, that network is used automatically. If multiple are set, use `--network`.
+Wallet keys are only needed for commands that move money (`hire`, `campaign create/topup`). `campaign list`/`campaign submit` only need the identity token. If only one wallet key is set, that network is used automatically. If multiple are set, use `--network`.
 
 ## Links
 

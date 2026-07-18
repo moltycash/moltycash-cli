@@ -1,7 +1,7 @@
 {
   "name": "moltycash",
   "version": "8.13.0",
-  "description": "CLI tool for sending USDC payments and managing gigs via molty.cash via x402 (Base, Solana)",
+  "description": "CLI tool for hiring humans and running CPM content campaigns via molty.cash via x402 (Base, Solana)",
   "type": "module",
   "bin": {
     "moltycash": "dist/cli.js"
@@ -21,8 +21,8 @@
     "x402",
     "solana",
     "base",
-    "gig",
-    "bounty",
+    "campaign",
+    "cpm",
     "ai-agents",
     "cli"
   ],
