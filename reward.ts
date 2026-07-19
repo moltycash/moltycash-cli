@@ -1,7 +1,6 @@
 import "dotenv/config";
 import minimist from "minimist";
 import axios from "axios";
-import { readCachedSession, readLatestSession } from "./lib/session.js";
 import { buildExplorerUrl } from "./lib/explorer.js";
 import { buildX402Signer } from "./lib/x402Network.js";
 
@@ -9,28 +8,6 @@ const baseURL = process.env.RESOURCE_SERVER_URL || "https://api.molty.cash";
 const X402_EXTENSION_URI = "https://github.com/google-a2a/a2a-x402/v0.1";
 
 let rpcIdCounter = 1;
-
-async function rpcWithSession(method: string, params: Record<string, unknown>, sessionToken: string): Promise<any> {
-    const response = await axios.post(`${baseURL}/a2a`, {
-        jsonrpc: "2.0",
-        id: rpcIdCounter++,
-        method,
-        params,
-    }, {
-        headers: {
-            "Content-Type": "application/json",
-            "X-Molty-Session-Token": sessionToken,
-        },
-    });
-    if (response.data.error) {
-        const err = response.data.error;
-        const e: any = new Error(err.message || "A2A request failed");
-        e.code = err.code;
-        e.data = err.data;
-        throw e;
-    }
-    return response.data.result;
-}
 
 async function rpcA2A(method: string, params: Record<string, unknown>): Promise<any> {
     const response = await axios.post(`${baseURL}/a2a`, {
@@ -54,29 +31,38 @@ async function rpcA2A(method: string, params: Record<string, unknown>): Promise<
     return response.data.result;
 }
 
-async function resolveWalletLabel(): Promise<string> {
-    // Reuse the x402 signer setup so we accept the same chain set everywhere.
-    const { walletLabel } = await buildX402Signer();
-    return walletLabel;
-}
-
 async function handleBalance(): Promise<void> {
-    // Prefer the wallet-specific session if any env key is set; otherwise just
-    // grab the latest cached session (e.g. one issued by a recent hire).
-    let cached = null;
-    try {
-        const label = await resolveWalletLabel();
-        cached = readCachedSession(label);
-    } catch { /* no env vars set — fall through to latest */ }
-    if (!cached) cached = readLatestSession();
-    if (!cached) {
-        console.error("❌ No active session found.");
-        console.error("   Make a paid call to mint one — any of:");
-        console.error("     npx moltycash session create");
-        process.exit(1);
+    const { client, walletLabel, network } = await buildX402Signer();
+    console.log(`🔍 Reading reward balance for ${walletLabel} (${network})...`);
+
+    console.log("💳 Phase 1: requesting payment requirements...");
+    const phase1 = await rpcA2A("reward.balance", {});
+    if (!phase1.id) throw new Error("Missing task ID in Phase 1 response");
+    const paymentRequired = phase1.status?.message?.metadata?.["x402.payment.required"];
+    if (!paymentRequired) throw new Error("No payment requirements in Phase 1 response");
+
+    console.log("🔐 Phase 2: signing + submitting payment...");
+    const signedPayment = await client.createPaymentPayload(paymentRequired);
+    const phase2 = await rpcA2A("reward.balance", { taskId: phase1.id, payment: signedPayment });
+
+    const artifacts = phase2.artifacts || [];
+    let result: any = null;
+    for (const a of artifacts) {
+        if (a.data) {
+            try {
+                result = JSON.parse(Buffer.from(a.data, "base64").toString());
+                break;
+            } catch { /* ignore */ }
+        }
     }
-    console.log(`🔍 Reading reward balance for ${cached.session_wallet}...`);
-    const result = await rpcWithSession("reward.balance", {}, cached.session_token);
+    if (!result) {
+        const msg = phase2.status?.message?.parts
+            ?.filter((p: any) => p.kind === "text")
+            .map((p: any) => p.text)
+            .join("\n");
+        throw new Error(msg || "reward.balance completed but no result artifact found");
+    }
+
     console.log("");
     console.log(`Molty wallet:        ${result.molty_wallet || '(no wallet yet)'}`);
     console.log(`$moltycash balance:  ${(result.balance_tokens || 0).toLocaleString()}`);
@@ -114,9 +100,10 @@ async function handleClaim(args: minimist.ParsedArgs): Promise<void> {
     const { client, walletLabel, network } = await buildX402Signer();
     console.log(`🎁 Claiming $moltycash for ${walletLabel} (${network}) → ${destination}`);
 
-    // Phase 1: request fee challenge
+    // Phase 1: request fee challenge. `wallet` is our own address — used only to
+    // look up our claimable balance and price the exit tax before any payment exists.
     console.log("💳 Phase 1: requesting USDC exit-tax challenge...");
-    const phase1 = await rpcA2A("reward.claim", { destination });
+    const phase1 = await rpcA2A("reward.claim", { destination, wallet: walletLabel });
     if (!phase1.id) throw new Error("Missing task ID in Phase 1 response");
     const paymentRequired = phase1.status?.message?.metadata?.["x402.payment.required"];
     if (!paymentRequired) throw new Error("No payment requirements in Phase 1 response");
@@ -189,8 +176,7 @@ async function main(): Promise<void> {
                 console.error("  moltycash reward balance");
                 console.error("  moltycash reward claim --destination <0x...>");
                 console.error("");
-                console.error("balance requires an active session (run `moltycash session create` first).");
-                console.error("claim requires EVM_PRIVATE_KEY only — it pays a $1 USDC exit tax via x402.");
+                console.error("Both pay a small USDC fee via x402 — balance is a flat 1¢; claim is a 1% exit tax (floor $0.02).");
                 process.exit(1);
         }
     } catch (err: any) {

@@ -1,7 +1,6 @@
 import "dotenv/config";
 import minimist from "minimist";
 import axios from "axios";
-import { captureSessionFromResult, readLatestSession } from "./lib/session.js";
 import { buildX402Signer } from "./lib/x402Network.js";
 
 const baseURL = process.env.RESOURCE_SERVER_URL || "https://api.molty.cash";
@@ -49,17 +48,6 @@ async function a2aIdentity(method: string, params: Record<string, unknown>): Pro
     return resp.data.result;
 }
 
-/** A2A JSON-RPC with a wallet session token (owner methods: review / release). */
-async function a2aSession(method: string, params: Record<string, unknown>, sessionToken: string): Promise<any> {
-    const resp = await axios.post(
-        `${baseURL}/a2a`,
-        { jsonrpc: "2.0", id: rpcId++, method, params },
-        { headers: { "Content-Type": "application/json", "X-Molty-Session-Token": sessionToken } },
-    );
-    if (resp.data.error) throw new Error(resp.data.error.message || "A2A request failed");
-    return resp.data.result;
-}
-
 /** Flatten a completed x402 task artifact to its JSON result. */
 function resultFromArtifacts(task: any): any {
     const artifacts = task?.artifacts || [];
@@ -76,9 +64,9 @@ function resultFromArtifacts(task: any): any {
 }
 
 /**
- * Run a paid campaign method (create / topup / status) over x402 two-phase
- * (Base or Solana). The USDC fee chain is independent of the campaign's
- * payout chain. Returns the flat result; caches any issued session token.
+ * Run a paid campaign method (create / topup / status / review / release / close)
+ * over x402 two-phase (Base or Solana). The USDC fee chain is independent of the
+ * campaign's payout chain. Returns the flat result.
  */
 async function paidCall(method: string, params: Record<string, unknown>): Promise<any> {
     const { client, walletLabel, network } = await buildX402Signer();
@@ -92,19 +80,7 @@ async function paidCall(method: string, params: Record<string, unknown>): Promis
     console.log("🔐 Phase 2: signing + submitting payment...");
     const signedPayment = await client.createPaymentPayload(paymentRequired);
     const phase2 = await a2aExt(method, { ...params, taskId: phase1.id, payment: signedPayment });
-    captureSessionFromResult(phase2);
     return resultFromArtifacts(phase2);
-}
-
-/** Load a cached wallet session (for owner review/release). campaign.create mints one. */
-function requireSession(): { session_token: string; session_wallet: string } {
-    const cached = readLatestSession();
-    if (!cached) {
-        console.error("❌ No active session found. Create a campaign (which mints one), or run:");
-        console.error("     moltycash session create");
-        process.exit(1);
-    }
-    return cached;
 }
 
 // ── payer commands ──────────────────────────────────────────────────────────
@@ -196,7 +172,7 @@ async function handleStatus(args: minimist.ParsedArgs): Promise<void> {
     console.log(`Wallet:            ${r.wallet_address}`);
 }
 
-// ── owner review / release (session token) ───────────────────────────────────
+// ── owner review / release / close (1¢ x402 per call) ────────────────────────
 
 async function handleReview(args: minimist.ParsedArgs): Promise<void> {
     const campaignId = args._[1] as string;
@@ -206,11 +182,9 @@ async function handleReview(args: minimist.ParsedArgs): Promise<void> {
         console.error("Usage: moltycash campaign review <campaign_id> <submission_id> <approve|reject> [--reason <text>]");
         process.exit(1);
     }
-    const session = requireSession();
-    const result = await a2aSession(
+    const result = await paidCall(
         "campaign.review",
         { campaign_id: campaignId, submission_id: submissionId, action, ...(args.reason && { reason: String(args.reason) }) },
-        session.session_token,
     );
     console.log(`✅ ${result.message || result.status}`);
 }
@@ -227,14 +201,13 @@ async function handleRelease(args: minimist.ParsedArgs): Promise<void> {
         console.error("❌ --views <n> is required (or use --reject to close without paying)");
         process.exit(1);
     }
-    const session = requireSession();
     const params: Record<string, unknown> = { campaign_id: campaignId, submission_id: submissionId };
     if (args.reject) params.action = "reject";
     else {
         params.views = Number(args.views);
         if (args.final) params.final = true;
     }
-    const result = await a2aSession("campaign.release", params, session.session_token);
+    const result = await paidCall("campaign.release", params);
     console.log(`✅ ${result.message || result.status}`);
     if (result.paid_total !== undefined) console.log(`   Paid so far: ${result.paid_total}`);
     if (result.payout_txn_hash) console.log(`   Payout tx: ${result.payout_txn_hash}`);
@@ -248,8 +221,7 @@ async function handleClose(args: minimist.ParsedArgs): Promise<void> {
         console.error("  registered payout destination for this campaign's chain, and closes the campaign.");
         process.exit(1);
     }
-    const session = requireSession();
-    const result = await a2aSession("campaign.close", { campaign_id: campaignId }, session.session_token);
+    const result = await paidCall("campaign.close", { campaign_id: campaignId });
     console.log(`✅ ${result.message || result.status}`);
     if (result.rejected_submissions) console.log(`   Rejected ${result.rejected_submissions} in-flight submission(s).`);
     if (result.refund_amount) console.log(`   Refunded ${result.refund_amount} → ${result.refund_to}`);

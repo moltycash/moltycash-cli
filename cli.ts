@@ -35,7 +35,6 @@ USDC payments and campaigns via molty.cash API
 COMMANDS:
   human    <hire>
   campaign <subcommand>
-  session  <create|status>
   reward   <balance|claim>
 
 HUMAN SUBCOMMANDS:
@@ -51,18 +50,14 @@ CAMPAIGN SUBCOMMANDS (pay-per-view / CPM content campaigns; daily payouts; token
        --credits defaults to a standard grant; campaign pauses when they run out.
   campaign topup <campaign_id> --credits <n>       Buy more submission credits
   campaign status <campaign_id>                    Live balance + credits (1¢)
-  campaign review <campaign_id> <submission_id> <approve|reject> [--reason <text>]  (auto mode)
-  campaign release <campaign_id> <submission_id> --views <n> [--final] [--reject]   (agent mode)
+  campaign review <campaign_id> <submission_id> <approve|reject> [--reason <text>]  (auto mode, 1¢)
+  campaign release <campaign_id> <submission_id> --views <n> [--final] [--reject]   (agent mode, 1¢)
   campaign close <campaign_id>                     Reject in-flight submissions, refund remaining
-                                                    balance to your registered payout destination, close
+                                                    balance to your registered payout destination, close (1¢)
   campaign list                                    Browse campaigns you can earn from
   campaign submit <campaign_id> <post_url>         Submit your post to a campaign
 
-SESSION SUBCOMMANDS (1¢ x402 mints a 24h wallet session token):
-  session create                                 Pay 1¢ to mint a session token (cached locally)
-  session status                                 Show cached session for current wallet
-
-REWARD SUBCOMMANDS (require an active session):
+REWARD SUBCOMMANDS (pay 1¢/call via x402):
   reward balance                                 Show $moltycash balance + tier info
   reward claim --destination <0x...>             Claim all $moltycash to a Base EVM address
 
@@ -137,9 +132,6 @@ function main() {
   } else if (command === "campaign") {
     const commandArgs = args.slice(1);
     runCommand("campaign.js", commandArgs);
-  } else if (command === "session") {
-    const commandArgs = args.slice(1);
-    runCommand("session.js", commandArgs);
   } else if (command === "reward") {
     const commandArgs = args.slice(1);
     runCommand("reward.js", commandArgs);
