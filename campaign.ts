@@ -5,7 +5,6 @@ import { buildX402Signer } from "./lib/x402Network.js";
 
 const baseURL = process.env.RESOURCE_SERVER_URL || "https://api.molty.cash";
 const X402_EXTENSION_URI = "https://github.com/google-a2a/a2a-x402/v0.1";
-const identityToken = process.env.MOLTY_IDENTITY_TOKEN as string | undefined;
 
 let rpcId = 1;
 
@@ -32,17 +31,6 @@ async function a2aExt(method: string, params: Record<string, unknown>): Promise<
         `${baseURL}/a2a`,
         { jsonrpc: "2.0", id: rpcId++, method, params },
         { headers: { "Content-Type": "application/json", "X-A2A-Extensions": X402_EXTENSION_URI } },
-    );
-    if (resp.data.error) throw new Error(resp.data.error.message || "A2A request failed");
-    return resp.data.result;
-}
-
-/** A2A JSON-RPC with the identity token (earner methods: list / submit). */
-async function a2aIdentity(method: string, params: Record<string, unknown>): Promise<any> {
-    const resp = await axios.post(
-        `${baseURL}/a2a`,
-        { jsonrpc: "2.0", id: rpcId++, method, params },
-        { headers: { "Content-Type": "application/json", ...(identityToken && { "X-Molty-Identity-Token": identityToken }) } },
     );
     if (resp.data.error) throw new Error(resp.data.error.message || "A2A request failed");
     return resp.data.result;
@@ -228,37 +216,23 @@ async function handleClose(args: minimist.ParsedArgs): Promise<void> {
     if (result.refund_txn_hash) console.log(`   Refund tx: ${result.refund_txn_hash}`);
 }
 
-// ── earner commands (identity token) ─────────────────────────────────────────
+// ── owner: list my campaigns (1¢ x402) ────────────────────────────────────────
 
 async function handleList(): Promise<void> {
-    console.log("\n📋 Fetching active campaigns...\n");
-    const result = await a2aIdentity("campaign.list", {});
+    console.log("\n📋 Fetching your campaigns...\n");
+    const result = await paidCall("campaign.list", {});
     const campaigns = result.campaigns || [];
     if (campaigns.length === 0) {
-        console.log("No active campaigns with open slots.");
+        console.log("You don't own any campaigns yet. Create one with 'moltycash campaign create'.");
         return;
     }
     for (const c of campaigns) {
-        console.log(`  🟢 ${c.campaign_id}`);
+        console.log(`  ${c.status === 'active' ? '🟢' : c.status === 'paused' ? '🟡' : '⚪'} ${c.campaign_id} (${c.status})`);
         console.log(`     ${c.description}`);
         console.log(`     ${c.cpm_rate} ${payoutSymbol(c.token_contract, c.ticker)}/1k views (max ${c.max_payout_per_submission}) on ${c.payout_chain}`);
+        console.log(`     Submissions: ${c.submissions_count} · Credits: ${c.credits_used}/${c.credits_total} used`);
         console.log();
     }
-    console.log(`Use 'moltycash campaign submit <campaign_id> <post_url>' to submit.`);
-}
-
-async function handleSubmit(args: minimist.ParsedArgs): Promise<void> {
-    const campaignId = args._[1] as string;
-    const proof = args._[2] as string;
-    if (!campaignId || !proof) {
-        console.error("Usage: moltycash campaign submit <campaign_id> <post_url>");
-        process.exit(1);
-    }
-    console.log(`\n📤 Submitting to ${campaignId}...\n`);
-    const result = await a2aIdentity("campaign.submit", { campaign_id: campaignId, proof });
-    console.log(`✅ ${result.message || result.status}`);
-    console.log(`   Submission: ${result.submission_id}`);
-    console.log(`   Earn ${result.cpm_rate} per 1,000 views (max ${result.max_payout_per_submission}) on ${result.payout_chain}.`);
 }
 
 // ── dispatch ──────────────────────────────────────────────────────────────
@@ -269,14 +243,6 @@ const args = minimist(process.argv.slice(2), {
     string: ["chain", "token", "ticker", "mode", "releaser", "description", "reason", "to", "min-hold", "post-type"],
 });
 const subcommand = args._[0];
-
-const earnerCommands = ["list", "submit"];
-if (!identityToken && earnerCommands.includes(String(subcommand))) {
-    console.error("❌ Missing MOLTY_IDENTITY_TOKEN environment variable");
-    console.error("   Earner commands (list, submit) require an identity token.");
-    console.error("   Get yours at: https://molty.cash (Profile > Identity Token)");
-    process.exit(1);
-}
 
 async function main(): Promise<void> {
     try {
@@ -302,11 +268,8 @@ async function main(): Promise<void> {
             case "list":
                 await handleList();
                 break;
-            case "submit":
-                await handleSubmit(args);
-                break;
             default:
-                console.error("Usage: moltycash campaign <create|topup|status|review|release|close|list|submit>");
+                console.error("Usage: moltycash campaign <create|topup|status|review|release|close|list>");
                 process.exit(1);
         }
     } catch (error: any) {

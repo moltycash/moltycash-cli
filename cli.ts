@@ -54,8 +54,7 @@ CAMPAIGN SUBCOMMANDS (pay-per-view / CPM content campaigns; daily payouts; token
   campaign release <campaign_id> <submission_id> --views <n> [--final] [--reject]   (agent mode, 1¢)
   campaign close <campaign_id>                     Reject in-flight submissions, refund remaining
                                                     balance to your registered payout destination, close (1¢)
-  campaign list                                    Browse campaigns you can earn from
-  campaign submit <campaign_id> <post_url>         Submit your post to a campaign
+  campaign list                                    List the campaigns you own (1¢)
 
 REWARD SUBCOMMANDS (pay 1¢/call via x402):
   reward balance                                 Show $moltycash balance + tier info
@@ -78,7 +77,7 @@ OPTIONS:
 ENVIRONMENT VARIABLES:
   SVM_PRIVATE_KEY         Your Solana private key
   EVM_PRIVATE_KEY         Your Base/EVM private key
-  MOLTY_IDENTITY_TOKEN    Identity token (optional for hire, required for campaign earner commands)
+  MOLTY_IDENTITY_TOKEN    Identity token (optional for hire — attributes the campaign to your molty account)
 
   If only one key is set, that network is used automatically.
   If multiple keys are set, you must specify --network.
