@@ -90,7 +90,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
         console.error("                              each real payout). 'credits' opts into the legacy prepaid per-event model.");
         console.error("  --credits <n>               only valid with --billing credits: prepaid submission slots (default grant if");
         console.error("                              omitted). Campaign pauses when they run out; top up to add more");
-        console.error("  --window <days>             daily-payout tracking window in days (default 7, 1–30)");
+        console.error("  --window <days>             daily-payout tracking window in days (default 2, 1–30)");
         console.error("  --mode <auto|agent>         auto=moltycash reads X views; agent=your agent reports views (default auto)");
         console.error("  --releaser <wallet>         agent mode: wallet allowed to release besides you");
         console.error("  --post-type <type>          restrict submissions to a specific X post format (optional)");
@@ -137,7 +137,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
 
     console.log(`\n✅ Campaign created: ${result.campaign_id}`);
     console.log(`   Pays ${result.cpm_rate} ${payoutSymbol(result.token_contract, result.ticker)} / 1,000 views (max ${result.max_payout_per_submission}/post)`);
-    console.log(`   Daily payouts: base ~2h after posting, then daily top-ups for ${result.window_days ?? 7} day(s)`);
+    console.log(`   Daily payouts: base ~2h after posting, then daily top-ups for ${result.window_days ?? 2} day(s)`);
     console.log(`   Payout chain: ${result.payout_chain}`);
     if (result.billing_mode === "credits") {
         console.log(`   Billing: credits (${result.credits} prepaid)`);
@@ -172,7 +172,7 @@ async function handleStatus(args: minimist.ParsedArgs): Promise<void> {
     const r = await paidCall("campaign.status", { campaign_id: campaignId });
     console.log(`Status:            ${r.status} (${r.accepting_submissions ? "accepting submissions" : "not accepting"})`);
     console.log(`Payout:            ${r.cpm_rate} ${payoutSymbol(r.token_contract, r.ticker)} / 1,000 views (max ${r.max_payout_per_submission}/post) on ${r.payout_chain}`);
-    console.log(`Daily payouts:     base ~2h after posting, then daily top-ups for ${r.window_days ?? 7} day(s)`);
+    console.log(`Daily payouts:     base ~2h after posting, then daily top-ups for ${r.window_days ?? 2} day(s)`);
     console.log(`Wallet balance:    ${r.token_balance} (${r.available_token_amount} available, ${r.committed_token_amount} committed)`);
     if (r.billing_mode === "credits") {
         console.log(`Credits:           ${r.credits_available} left (${r.credits_used} used of ${r.credits_total})`);

@@ -46,7 +46,7 @@ CAMPAIGN SUBCOMMANDS (pay-per-view / CPM content campaigns; daily payouts; token
        [--chain <solana|base>] [--token <addr>] [--ticker <SYM>] [--window <days>]
        [--billing <commission|credits>] [--credits <n>] [--mode <auto|agent>] [--releaser <wallet>]
        Daily payouts: guaranteed base payout ~2h after posting, then daily top-ups on
-       new views for --window days (default 7). --token defaults to USDC on the chain.
+       new views for --window days (default 2). --token defaults to USDC on the chain.
        --billing defaults to 'commission' (no credits — molty earns the create fee + 3%
        of each real payout). --credits only applies with --billing credits (legacy
        prepaid per-event model; campaign pauses when they run out).
