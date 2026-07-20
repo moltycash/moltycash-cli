@@ -1,6 +1,6 @@
 {
   "name": "moltycash",
-  "version": "9.1.0",
+  "version": "9.2.0",
   "description": "CLI tool for hiring humans and running CPM content campaigns via molty.cash via x402 (Base, Solana)",
   "type": "module",
   "bin": {

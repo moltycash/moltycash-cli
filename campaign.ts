@@ -152,8 +152,16 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
     } else {
         console.log(`   Billing: commission-only (3% of each real payout)`);
     }
+    const sym = payoutSymbol(result.token_contract, result.ticker);
+    const maxPayout = Number(result.max_payout_per_submission);
+    // Suggested minimum: one full payout at the cap, +3% for the commission swept on top
+    // of it (charged in both billing modes — see campaignCommission() in the API).
+    const suggestedMin = Number.isFinite(maxPayout) ? Number((maxPayout * 1.03).toFixed(6)) : undefined;
     console.log(`\n💰 Fund the campaign wallet with the payout token:`);
     console.log(`   ${result.wallet_address}`);
+    if (suggestedMin !== undefined) {
+        console.log(`   💡 Suggested minimum before starting: ${suggestedMin} ${sym} (covers one full payout at the cap + 3% commission)`);
+    }
     console.log(`\n🔗 https://molty.cash/campaign/${result.campaign_id}`);
 }
 
