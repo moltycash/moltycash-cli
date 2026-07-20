@@ -75,13 +75,15 @@ async function paidCall(method: string, params: Record<string, unknown>): Promis
 
 async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
     const description = (args.description as string) || args._.slice(1).join(" ");
-    if (!args.cpm || !args.max || !args.token || !description) {
-        console.error("Usage: moltycash campaign create --cpm <rate> --max <cap> --token <addr> [options] \"<description>\"");
+    if (!args.token || !description) {
+        console.error("Usage: moltycash campaign create --token <addr> [options] \"<description>\"");
         console.error("  --token <addr>              REQUIRED. Payout token: SPL mint (solana) or ERC-20 0x (base) — payout chain is");
         console.error("                              detected from the address format, no separate chain flag needed");
         console.error("  --ticker <SYM>              token ticker (must be mentioned in posts, auto mode)");
-        console.error("  --cpm <rate>                MAX payout tokens per 1,000 views (rate scales down with low engagement; min 25% of this)");
-        console.error("  --max <cap>                 max payout per submission (per-post cap)");
+        console.error("  --cpm <rate>                MAX payout tokens per 1,000 views (rate scales down with low engagement; min 25% of this).");
+        console.error("                              Optional — pass both --cpm and --max, or omit both to auto-price --cpm at $1 worth of");
+        console.error("                              the token (--max then defaults to --cpm × 10). --max without --cpm is rejected.");
+        console.error("  --max <cap>                 max payout per submission (per-post cap). Optional if --cpm is also omitted.");
         console.error("  --min-hold <amount>         require earners to hold at least this amount of the campaign token to submit and receive each payout (default: $5 worth; pass 0 to disable)");
         console.error("  --min-followers <n>         require earners to have at least N X followers to submit (optional)");
         console.error("  --min-age <days>            require earners' X account to be at least N days old (optional)");
@@ -110,10 +112,18 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
         process.exit(1);
     }
 
+    // --max only makes sense alongside --cpm — same fail-fast-client-side rationale as above.
+    if (args.max !== undefined && args.cpm === undefined) {
+        console.error("❌ --max only applies with --cpm (pass both, or omit both to auto-price --cpm at $1 worth of the token)");
+        process.exit(1);
+    }
+
     const params: Record<string, unknown> = {
         token_contract: String(args.token),
-        cpm_rate: Number(args.cpm),
-        max_payout_per_submission: Number(args.max),
+        // Omit cpm_rate/max_payout_per_submission when not supplied — the server auto-prices
+        // cpm_rate at $1 worth of the token and defaults max_payout_per_submission to cpm × 10.
+        ...(args.cpm !== undefined && { cpm_rate: Number(args.cpm) }),
+        ...(args.max !== undefined && { max_payout_per_submission: Number(args.max) }),
         ...(billing && { billing_mode: billing }),
         // Omit credits when not supplied — the server grants a default slot count.
         ...(args.credits !== undefined && { credits: Number(args.credits) }),

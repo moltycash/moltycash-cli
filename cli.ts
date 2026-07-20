@@ -42,12 +42,14 @@ HUMAN SUBCOMMANDS:
              (Performance hire only — creates a CPM campaign locked to this earner; --amount is the one-time creation fee)
 
 CAMPAIGN SUBCOMMANDS (pay-per-view / CPM content campaigns; daily payouts; token payouts on Solana or Base):
-  campaign create --cpm <rate> --max <cap> --token <addr> "<description>"
+  campaign create --token <addr> "<description>" [--cpm <rate>] [--max <cap>]
        [--ticker <SYM>] [--window <days>]
        [--billing <commission|credits>] [--credits <n>] [--mode <auto|agent>] [--releaser <wallet>]
        Daily payouts: guaranteed base payout ~2h after posting, then daily top-ups on
        new views for --window days (default 2). --token is required (SPL mint on Solana or
        ERC-20 0x address on Base) — payout chain is detected from the address format.
+       --cpm/--max are optional together: pass both, or omit both to auto-price --cpm at
+       $1 worth of the token (--max then defaults to --cpm × 10); --max without --cpm fails.
        --billing defaults to 'commission' (no credits — molty earns the create fee + 3%
        of each real payout). --credits only applies with --billing credits (legacy
        prepaid per-event model; campaign pauses when they run out).
