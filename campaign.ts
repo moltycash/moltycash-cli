@@ -9,8 +9,8 @@ const X402_EXTENSION_URI = "https://github.com/google-a2a/a2a-x402/v0.1";
 let rpcId = 1;
 
 // Display symbol for a campaign's PAYOUT token. `ticker` is the required-mention string
-// (e.g. MOLTYCASH) and is NOT necessarily the payout token — payouts default to USDC. So the
-// label must reflect token_contract: USDC addresses → "USDC", else the provided ticker.
+// (e.g. MOLTYCASH) and is NOT necessarily the payout token's own symbol. So the label must
+// reflect token_contract: USDC addresses → "USDC", else the provided ticker.
 const USDC_ADDRESSES = new Set<string>([
     "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", // Base mainnet
     "0x036cbd53842c5426634e7929541ec2318f3dcf7e", // Base sepolia
@@ -75,11 +75,11 @@ async function paidCall(method: string, params: Record<string, unknown>): Promis
 
 async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
     const description = (args.description as string) || args._.slice(1).join(" ");
-    if (!args.cpm || !args.max || !description) {
-        console.error("Usage: moltycash campaign create --cpm <rate> --max <cap> [options] \"<description>\"");
-        console.error("  --chain <solana|base>       payout chain (default solana)");
-        console.error("  --token <addr>              payout token: SPL mint (solana) or ERC-20 0x (base). Default: USDC on the payout chain");
-        console.error("  --ticker <SYM>              token ticker (must be mentioned in posts, auto mode; not required for USDC)");
+    if (!args.cpm || !args.max || !args.token || !description) {
+        console.error("Usage: moltycash campaign create --cpm <rate> --max <cap> --token <addr> [options] \"<description>\"");
+        console.error("  --token <addr>              REQUIRED. Payout token: SPL mint (solana) or ERC-20 0x (base) — payout chain is");
+        console.error("                              detected from the address format, no separate chain flag needed");
+        console.error("  --ticker <SYM>              token ticker (must be mentioned in posts, auto mode)");
         console.error("  --cpm <rate>                MAX payout tokens per 1,000 views (rate scales down with low engagement; min 25% of this)");
         console.error("  --max <cap>                 max payout per submission (per-post cap)");
         console.error("  --min-hold <amount>         require earners to hold at least this amount of the campaign token to submit and receive each payout (default: $5 worth; pass 0 to disable)");
@@ -111,9 +111,7 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
     }
 
     const params: Record<string, unknown> = {
-        payout_chain: (args.chain as string) || "solana",
-        // Omit token_contract when not supplied — the server defaults it to USDC on the payout chain.
-        ...(args.token && { token_contract: String(args.token) }),
+        token_contract: String(args.token),
         cpm_rate: Number(args.cpm),
         max_payout_per_submission: Number(args.max),
         ...(billing && { billing_mode: billing }),

@@ -38,15 +38,16 @@ COMMANDS:
   reward   <balance|claim>
 
 HUMAN SUBCOMMANDS:
-  human hire <username> "<description>" --amount <USD> --cpm <rate> --max-payout <cap> [--payout-chain <solana|base>] [--token-contract <addr>] [--ticker <SYM>] [--network <base|solana>]
+  human hire <username> "<description>" --amount <USD> --cpm <rate> --max-payout <cap> --token-contract <addr> [--ticker <SYM>] [--network <base|solana>]
              (Performance hire only — creates a CPM campaign locked to this earner; --amount is the one-time creation fee)
 
 CAMPAIGN SUBCOMMANDS (pay-per-view / CPM content campaigns; daily payouts; token payouts on Solana or Base):
-  campaign create --cpm <rate> --max <cap> "<description>"
-       [--chain <solana|base>] [--token <addr>] [--ticker <SYM>] [--window <days>]
+  campaign create --cpm <rate> --max <cap> --token <addr> "<description>"
+       [--ticker <SYM>] [--window <days>]
        [--billing <commission|credits>] [--credits <n>] [--mode <auto|agent>] [--releaser <wallet>]
        Daily payouts: guaranteed base payout ~2h after posting, then daily top-ups on
-       new views for --window days (default 2). --token defaults to USDC on the chain.
+       new views for --window days (default 2). --token is required (SPL mint on Solana or
+       ERC-20 0x address on Base) — payout chain is detected from the address format.
        --billing defaults to 'commission' (no credits — molty earns the create fee + 3%
        of each real payout). --credits only applies with --billing credits (legacy
        prepaid per-event model; campaign pauses when they run out).
@@ -63,8 +64,8 @@ REWARD SUBCOMMANDS (pay 1¢/call via x402):
   reward claim --destination <0x...>             Claim all $moltycash to a Base EVM address
 
 HUMAN HIRE EXAMPLES:
-  moltycash human hire 0xmesuthere "Write an X Article about molty.cash" --amount 1 --cpm 5 --max-payout 50
-  moltycash human hire 0xmesuthere "Post about us on X" --amount 1 --cpm 2 --max-payout 20 --payout-chain base
+  moltycash human hire 0xmesuthere "Write an X Article about molty.cash" --amount 1 --cpm 5 --max-payout 50 --token-contract EPjF...
+  moltycash human hire 0xmesuthere "Post about us on X" --amount 1 --cpm 2 --max-payout 20 --token-contract 0x...
 
 AMOUNT FORMATS:
   1¢               Cents notation (recommended)

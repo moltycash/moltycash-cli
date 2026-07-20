@@ -128,12 +128,13 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
 
   const amountRaw = args.amount !== undefined ? args.amount : undefined;
 
-  if (!username || !description || amountRaw === undefined) {
+  if (!username || !description || amountRaw === undefined || !args["token-contract"]) {
     console.error('Usage:');
-    console.error('  moltycash human hire <username> "<description>" --amount <USD> --cpm <rate> --max-payout <cap> [--payout-chain solana|base] [--token-contract <addr>] [--ticker TOKEN]');
+    console.error('  moltycash human hire <username> "<description>" --amount <USD> --cpm <rate> --max-payout <cap> --token-contract <addr> [--ticker TOKEN]');
+    console.error('  --token-contract is required (SPL mint on Solana or ERC-20 0x address on Base) — payout chain is detected from the address format');
     console.error("\nExamples:");
-    console.error('  moltycash human hire 0xmesuthere "Shill our token launch" --amount 1 --cpm 0.001 --max-payout 10 --ticker MYTOKEN');
-    console.error('  moltycash human hire 0xmesuthere "Post about our launch on X" --amount 1 --cpm 5 --max-payout 50');
+    console.error('  moltycash human hire 0xmesuthere "Shill our token launch" --amount 1 --cpm 0.001 --max-payout 10 --token-contract 0x... --ticker MYTOKEN');
+    console.error('  moltycash human hire 0xmesuthere "Post about our launch on X" --amount 1 --cpm 5 --max-payout 50 --token-contract EPjF...');
     process.exit(1);
   }
 
@@ -163,17 +164,12 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
     console.error("❌ --max-payout is required and must be > 0");
     process.exit(1);
   }
-  const payoutChain = args["payout-chain"] ? String(args["payout-chain"]).toLowerCase() : "solana";
-  if (payoutChain !== "solana" && payoutChain !== "base") {
-    console.error('❌ --payout-chain must be "solana" or "base"');
-    process.exit(1);
-  }
+  const tokenContract = String(args["token-contract"]);
 
   const perfFlags: Record<string, unknown> = {
     cpm_rate: cpmRaw,
     max_payout_per_submission: maxPayoutRaw,
-    payout_chain: payoutChain,
-    ...(args["token-contract"] ? { token_contract: String(args["token-contract"]) } : {}),
+    token_contract: tokenContract,
     ...(args.ticker ? { ticker: String(args.ticker) } : {}),
   };
 
@@ -187,7 +183,7 @@ async function handleHire(args: minimist.ParsedArgs): Promise<void> {
   console.log(`   💰 Amount: $${amount} USDC`);
   console.log(`   CPM: ${cpmRaw} ${args.ticker || 'token'} / 1K views`);
   console.log(`   Cap: ${maxPayoutRaw} ${args.ticker || 'token'} / post`);
-  console.log(`   Payout chain: ${payoutChain}`);
+  console.log(`   Token: ${tokenContract}`);
   console.log();
 
   const buildHireParams = (): Record<string, unknown> => ({
