@@ -86,7 +86,10 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
         console.error("  --min-followers <n>         require earners to have at least N X followers to submit (optional)");
         console.error("  --min-age <days>            require earners' X account to be at least N days old (optional)");
         console.error("  --min-views <n>             minimum views a post must reach before payout fires; does not block submission (optional)");
-        console.error("  --credits <n>               prepaid submission slots (optional; a default grant is used if omitted). Campaign pauses when they run out; top up to add more");
+        console.error("  --billing <commission|credits>  default 'commission' (no credits — molty earns the create fee + 3% of");
+        console.error("                              each real payout). 'credits' opts into the legacy prepaid per-event model.");
+        console.error("  --credits <n>               only valid with --billing credits: prepaid submission slots (default grant if");
+        console.error("                              omitted). Campaign pauses when they run out; top up to add more");
         console.error("  --window <days>             daily-payout tracking window in days (default 7, 1–30)");
         console.error("  --mode <auto|agent>         auto=moltycash reads X views; agent=your agent reports views (default auto)");
         console.error("  --releaser <wallet>         agent mode: wallet allowed to release besides you");
@@ -98,12 +101,22 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
         process.exit(1);
     }
 
+    // billing_mode defaults to 'commission' server-side. --credits only makes sense with
+    // --billing credits — fail fast client-side rather than round-tripping a payment that
+    // the server would reject anyway.
+    const billing = (args.billing as string) || undefined;
+    if (args.credits !== undefined && billing !== "credits") {
+        console.error("❌ --credits only applies with --billing credits (omit --credits, or add --billing credits to prepay a settlement-credit pool)");
+        process.exit(1);
+    }
+
     const params: Record<string, unknown> = {
         payout_chain: (args.chain as string) || "solana",
         // Omit token_contract when not supplied — the server defaults it to USDC on the payout chain.
         ...(args.token && { token_contract: String(args.token) }),
         cpm_rate: Number(args.cpm),
         max_payout_per_submission: Number(args.max),
+        ...(billing && { billing_mode: billing }),
         // Omit credits when not supplied — the server grants a default slot count.
         ...(args.credits !== undefined && { credits: Number(args.credits) }),
         release_mode: (args.mode as string) || "auto",
@@ -126,7 +139,11 @@ async function handleCreate(args: minimist.ParsedArgs): Promise<void> {
     console.log(`   Pays ${result.cpm_rate} ${payoutSymbol(result.token_contract, result.ticker)} / 1,000 views (max ${result.max_payout_per_submission}/post)`);
     console.log(`   Daily payouts: base ~2h after posting, then daily top-ups for ${result.window_days ?? 7} day(s)`);
     console.log(`   Payout chain: ${result.payout_chain}`);
-    console.log(`   Prepaid credits: ${result.credits}`);
+    if (result.billing_mode === "credits") {
+        console.log(`   Billing: credits (${result.credits} prepaid)`);
+    } else {
+        console.log(`   Billing: commission-only (3% of each real payout)`);
+    }
     console.log(`\n💰 Fund the campaign wallet with the payout token:`);
     console.log(`   ${result.wallet_address}`);
     console.log(`\n🔗 https://molty.cash/campaign/${result.campaign_id}`);
@@ -136,6 +153,8 @@ async function handleTopup(args: minimist.ParsedArgs): Promise<void> {
     const campaignId = args._[1] as string;
     if (!campaignId || !args.credits) {
         console.error("Usage: moltycash campaign topup <campaign_id> --credits <n>");
+        console.error("  Only applies to campaigns created with --billing credits; commission-only campaigns");
+        console.error("  have nothing to top up.");
         process.exit(1);
     }
     console.log(`\n➕ Topping up ${campaignId}...\n`);
@@ -155,7 +174,11 @@ async function handleStatus(args: minimist.ParsedArgs): Promise<void> {
     console.log(`Payout:            ${r.cpm_rate} ${payoutSymbol(r.token_contract, r.ticker)} / 1,000 views (max ${r.max_payout_per_submission}/post) on ${r.payout_chain}`);
     console.log(`Daily payouts:     base ~2h after posting, then daily top-ups for ${r.window_days ?? 7} day(s)`);
     console.log(`Wallet balance:    ${r.token_balance} (${r.available_token_amount} available, ${r.committed_token_amount} committed)`);
-    console.log(`Credits:           ${r.credits_available} left (${r.credits_used} used of ${r.credits_total})`);
+    if (r.billing_mode === "credits") {
+        console.log(`Credits:           ${r.credits_available} left (${r.credits_used} used of ${r.credits_total})`);
+    } else {
+        console.log(`Billing:           commission-only (3% of each real payout)`);
+    }
     console.log(`Submissions:       ${r.submissions_count}`);
     console.log(`Wallet:            ${r.wallet_address}`);
 }
@@ -230,7 +253,8 @@ async function handleList(): Promise<void> {
         console.log(`  ${c.status === 'active' ? '🟢' : c.status === 'paused' ? '🟡' : '⚪'} ${c.campaign_id} (${c.status})`);
         console.log(`     ${c.description}`);
         console.log(`     ${c.cpm_rate} ${payoutSymbol(c.token_contract, c.ticker)}/1k views (max ${c.max_payout_per_submission}) on ${c.payout_chain}`);
-        console.log(`     Submissions: ${c.submissions_count} · Credits: ${c.credits_used}/${c.credits_total} used`);
+        const billingSuffix = c.billing_mode === "credits" ? ` · Credits: ${c.credits_used}/${c.credits_total} used` : " · Billing: commission-only";
+        console.log(`     Submissions: ${c.submissions_count}${billingSuffix}`);
         console.log();
     }
 }
@@ -240,7 +264,7 @@ async function handleList(): Promise<void> {
 // Force string parsing for flags that carry addresses/hex/text — otherwise minimist
 // coerces values like a 0x… token address into a (lossy) hex Number.
 const args = minimist(process.argv.slice(2), {
-    string: ["chain", "token", "ticker", "mode", "releaser", "description", "reason", "to", "min-hold", "post-type"],
+    string: ["chain", "token", "ticker", "mode", "releaser", "description", "reason", "to", "min-hold", "post-type", "billing"],
 });
 const subcommand = args._[0];
 
